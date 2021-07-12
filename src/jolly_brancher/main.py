@@ -252,15 +252,15 @@ def main(args):
     subprocess.run(push_branch_cmd, check=True)
 
     # get URL to branch on GitHub
-    # repo_url = (
-    #     subprocess.check_output(["git", "config", "--get", "remote.origin.url"])
-    #     .decode("utf-8")
-    #     .strip(".git\n")
-    # )
-    # branch_url = f"{repo_url}/tree/{branch_name}"
+    repo_url = (
+        subprocess.check_output(["git", "config", "--get", f"remote.{REMOTE}.url"])
+        .decode("utf-8")
+        .strip(".git\n")
+    )
+    branch_url = f"{repo_url}/tree/{branch_name}"
 
-    print("Adding comment with branch name to issue...")
-    jira.add_comment(myissue, f"Jolly Brancher generated {branch_name}.")
+    print(f"Adding comment with branch (branch_url) name to issue...")
+    jira.add_comment(myissue, f"Jolly Brancher generated {branch_name} at {branch_url}")
 
 
 def run():
