@@ -36,3 +36,10 @@ Building
  * tox -e publish  # to test your project uploads correctly in test.pypi.org
  * tox -e publish -- --repository pypi  # to release your package to PyPI
  * tox -av  # to list all the tasks available
+
+Publishing
+==========
+tox -e clean
+git tag v0.0.<NEXT_VERSION>
+tox -e build
+tox -e publish -- --repository pypi
