@@ -54,7 +54,7 @@ KEYS_AND_PROMPTS = [
 ]
 CONFIG_DIR = os.path.expanduser("~/.config")
 CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
-DEFAULT_SECTION_NAME = "DEFAULT"
+DEFAULT_SECTION_NAME = "jira"
 
 
 def config_setup():
@@ -92,7 +92,7 @@ def config_setup():
 # executable/script.
 
 
-def parse_args(args, repo_dirs):
+def parse_args(args, repo_dirs, default_parent):
     """
     Extract the CLI arguments from argparse
     """
@@ -108,11 +108,13 @@ def parse_args(args, repo_dirs):
     parser.add_argument(
         "--parent",
         help="Parent branch",
-        default="dev",
+        default=default_parent,
         required=False,
     )
 
-    parser.add_argument("ticket", help="Ticket to build branch name from")
+    parser.add_argument(
+        "--ticket", help="Ticket to build branch name from", required=False
+    )
 
     parser.add_argument(
         "--version",
@@ -157,14 +159,41 @@ def fetch_config():
     config = configparser.ConfigParser()
     config.read(CONFIG_FILENAME)
 
-    default_config = config["DEFAULT"]
+    default_config = config["jira"]
+    DEFAULT_BRANCH_FORMAT = "{issue_type}/{ticket}-{summary}"
 
     return (
         default_config["repo_root"],
         default_config["token"],
         default_config["base_url"],
         default_config["auth_email"],
+        default_config.get("branch_format", DEFAULT_BRANCH_FORMAT),
     )
+
+
+def get_all_issues(jira_client, project_name=None):
+    issues = []
+    i = 0
+    chunk_size = 100
+    conditions = [
+        "assignee = currentUser()",
+        "status = 'In Progress' order by created DESC",
+    ]
+    if project_name:
+        conditions.append(f"project = '{project_name}'")
+
+    condition_string = " and ".join(conditions)
+    while True:
+        chunk = jira_client.search_issues(
+            condition_string,
+            startAt=i,
+            maxResults=chunk_size,
+        )
+        i += chunk_size
+        issues += chunk.iterable
+        if i >= chunk.total:
+            break
+    return issues
 
 
 def main(args):
@@ -178,21 +207,39 @@ def main(args):
           (for example  ``["--verbose", "42"]``).
     """
 
-    REPO_ROOT, TOKEN, BASE_URL, AUTH_EMAIL = fetch_config()
+    REPO_ROOT, TOKEN, BASE_URL, AUTH_EMAIL, BRANCH_FORMAT = fetch_config()
 
     jira = JIRA(BASE_URL, basic_auth=(AUTH_EMAIL, TOKEN))
 
     repo_dirs = os.listdir(REPO_ROOT)
-    args = parse_args(None, repo_dirs)
+
+    p = Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
+    rc = p.returncode
+
+    decoded = output.decode("utf-8")
+    parent = decoded.split("...")[1].split(" ")[0]
+    upstream, parent_branch = parent.split("/")
+
+    args = parse_args(None, repo_dirs, parent_branch)
 
     if args.repo:
         repo = args.repo
     else:
-        html_completer = WordCompleter(repo_dirs)
-        repo = prompt("Choose repository: ", completer=html_completer)
-        print("Using repository: %s" % repo)
+        repo_completer = WordCompleter(repo_dirs)
+        repo = prompt("Choose repository: ", completer=repo_completer)
 
-    ticket = args.ticket.upper()
+    if args.ticket:
+        ticket = args.ticket
+    else:
+        issues = get_all_issues(jira)
+        ticket_completer = WordCompleter(
+            [f"{str(x)}: {x.fields.summary} ({x.fields.issuetype})" for x in issues]
+        )
+        long_ticket = prompt("Choose ticket: ", completer=ticket_completer)
+        ticket = long_ticket.split(":")[0]
+
+    ticket = ticket.upper()
     myissue = jira.issue(ticket)
 
     summary = myissue.fields.summary.lower()
@@ -202,10 +249,11 @@ def main(args):
 
     issue_type = str(myissue.fields.issuetype).upper()
 
-    branch_name = f"{issue_type}/{ticket}-{summary}"
+    branch_name = BRANCH_FORMAT.format(
+        issue_type=issue_type, ticket=ticket, summary=summary
+    )
 
-    print(myissue)
-    print(branch_name)
+    print(f"Creating branch {branch_name}")
 
     os.chdir(REPO_ROOT + "/" + repo)
 
