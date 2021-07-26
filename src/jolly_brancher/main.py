@@ -99,13 +99,6 @@ def parse_args(args, repo_dirs, default_parent):
     parser = argparse.ArgumentParser(description="Sweet branch creation tool")
 
     parser.add_argument(
-        "--repo",
-        help="Repository to create branch in",
-        choices=repo_dirs,
-        required=False,
-    )
-
-    parser.add_argument(
         "--parent",
         help="Parent branch",
         default=default_parent,
@@ -212,6 +205,9 @@ def main(args):
     jira = JIRA(BASE_URL, basic_auth=(AUTH_EMAIL, TOKEN))
 
     repo_dirs = os.listdir(REPO_ROOT)
+    repo_completer = WordCompleter(repo_dirs)
+    repo = prompt("Choose repository: ", completer=repo_completer)
+    os.chdir(REPO_ROOT + "/" + repo)
 
     p = Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
     output, err = p.communicate(b"input data that is passed to subprocess' stdin")
@@ -220,14 +216,7 @@ def main(args):
     decoded = output.decode("utf-8")
     parent = decoded.split("...")[1].split(" ")[0]
     upstream, parent_branch = parent.split("/")
-
     args = parse_args(None, repo_dirs, parent_branch)
-
-    if args.repo:
-        repo = args.repo
-    else:
-        repo_completer = WordCompleter(repo_dirs)
-        repo = prompt("Choose repository: ", completer=repo_completer)
 
     if args.ticket:
         ticket = args.ticket
@@ -254,8 +243,6 @@ def main(args):
     )
 
     print(f"Creating branch {branch_name}")
-
-    os.chdir(REPO_ROOT + "/" + repo)
 
     p = Popen(["git", "remote", "-v"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
     output, err = p.communicate(b"input data that is passed to subprocess' stdin")
