@@ -18,17 +18,20 @@ only have to write the description for what I'm working one one time
 
 In order to streamline and facilitate the developer's workflow this
 tool aims to connect an arbitrary ticketing system (currently only
-JIRA is supported) to a git forge (currently only github is
+JIRA is supported) to a git forge (currently only GitHub is
 supported).
 
 Features
 ============
 
-Behavior | Description
------------- | -------------
-Create branch | Given a local repository and a ticket number, scrape the ticket's contents and use that to create a local branch where the branch name matches an arbitrary format defined in the ini file.
- 
-Create PR | Given a local repository with a well formed branch name, create a PR that scrapes the local codebase and pre-populates all the interesting details inserting those into the description of a PR
+Create branch
+  Given a local repository and a ticket number, scrape the ticket's contents and use that to create a local branch where the branch name matches an arbitrary format defined in the ini file.
+
+Create PR
+  Given a local repository with a well formed branch name, create a PR that scrapes the local codebase and pre-populates all the interesting details inserting those into the description of a PR
+
+Scrape forge for collaborator tags
+  In order to facilitate completion the tool scrapes the forge for all known members of the team that might be assigned or interested in the change
 
 Feature Implementation
 ============
