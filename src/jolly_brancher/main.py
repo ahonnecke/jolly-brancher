@@ -55,6 +55,7 @@ KEYS_AND_PROMPTS = [
 CONFIG_DIR = os.path.expanduser("~/.config")
 CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
 DEFAULT_SECTION_NAME = "jira"
+SUMMARY_MAX_LENGTH = 35
 
 
 def config_setup():
@@ -239,7 +240,7 @@ def main(args):
     issue_type = str(myissue.fields.issuetype).upper()
 
     branch_name = BRANCH_FORMAT.format(
-        issue_type=issue_type, ticket=ticket, summary=summary
+        issue_type=issue_type, ticket=ticket, summary=summary[0:SUMMARY_MAX_LENGTH]
     )
 
     print(f"Creating branch {branch_name}")
