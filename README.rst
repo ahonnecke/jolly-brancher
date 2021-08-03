@@ -9,8 +9,32 @@ A sweet branch creation tool
 Description
 ===========
 
-A longer description of your project goes here...
+The overarching goal here is to facilitate developer time and remove
+duplicative work.
 
+As a developer, I am more productive (and more descriptive) when I
+only have to write the description for what I'm working one one time
+(or barring that, as few times as possible).
+
+In order to streamline and facilitate the developer's workflow this
+tool aims to connect an arbitrary ticketing system (currently only
+JIRA is supported) to a git forge (currently only github is
+supported).
+
+Features
+============
+
+Behavior | Description
+------------ | -------------
+Create branch | Given a local repository and a ticket number, scrape the ticket's contents and use that to create a local branch where the branch name matches an arbitrary format defined in the ini file.
+ 
+Create PR | Given a local repository with a well formed branch name, create a PR that scrapes the local codebase and pre-populates all the interesting details inserting those into the description of a PR
+
+Feature Implementation
+============
+- [x] Branch creation
+- [ ] Scrape forge for collaborator tags
+- [ ] PR creation
 
 Installation
 ============
