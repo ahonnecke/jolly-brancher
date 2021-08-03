@@ -272,12 +272,13 @@ def main(args):
     fetch_branch_cmd = ["git", "fetch", "--all"]
     subprocess.run(fetch_branch_cmd, check=True)
 
+    clean_parent = "".join(args.parent.split())
     local_branch_cmd = [
         "git",
         "checkout",
         "-b",
         branch_name,
-        f"{REMOTE}/{args.parent}",
+        f"{REMOTE}/{clean_parent}",
     ]  # this should change
     subprocess.run(local_branch_cmd, check=True)
 
