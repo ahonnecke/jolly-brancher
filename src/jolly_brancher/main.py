@@ -50,12 +50,12 @@ KEYS_AND_PROMPTS = [
         "token",
         "your Atlassian API token which can be generated here (https://id.atlassian.com/manage-profile/security/api-tokens)",
     ],
-    ["repo_root", "the path to the root directory for the repository"],
 ]
 CONFIG_DIR = os.path.expanduser("~/.config")
 CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
-DEFAULT_SECTION_NAME = "jira"
+JIRA_SECTION_NAME = "jira"
 SUMMARY_MAX_LENGTH = 35
+GIT_SECTION_NAME = "git"
 
 
 def config_setup():
@@ -69,16 +69,14 @@ def config_setup():
 
         for key, input_prompt in KEYS_AND_PROMPTS:
             if (
-                key not in config[DEFAULT_SECTION_NAME]
-                or config[DEFAULT_SECTION_NAME][key] == ""
+                key not in config[JIRA_SECTION_NAME]
+                or config[JIRA_SECTION_NAME][key] == ""
             ):  # check all entries are present and populated
-                config[DEFAULT_SECTION_NAME][key] = input(
-                    f"Please enter {input_prompt}: "
-                )
+                config[JIRA_SECTION_NAME][key] = input(f"Please enter {input_prompt}: ")
 
     else:
         warnings.warn(f"~/.config/{FILENAME} does not exist. Creating the file now...")
-        config[DEFAULT_SECTION_NAME] = {
+        config[JIRA_SECTION_NAME] = {
             key: input(f"Please enter {input_prompt}: ")
             for key, input_prompt in KEYS_AND_PROMPTS
         }  # ask for input and set all entries
@@ -153,15 +151,19 @@ def fetch_config():
     config = configparser.ConfigParser()
     config.read(CONFIG_FILENAME)
 
-    default_config = config["jira"]
+    default_config = config[JIRA_SECTION_NAME]
+    git_config = config[GIT_SECTION_NAME]
+
     DEFAULT_BRANCH_FORMAT = "{issue_type}/{ticket}-{summary}"
 
     return (
-        default_config["repo_root"],
+        git_config["repo_root"],
         default_config["token"],
         default_config["base_url"],
         default_config["auth_email"],
         default_config.get("branch_format", DEFAULT_BRANCH_FORMAT),
+        git_config["pat"],
+        git_config["forge_root"],
     )
 
 
@@ -201,7 +203,15 @@ def main(args):
           (for example  ``["--verbose", "42"]``).
     """
 
-    REPO_ROOT, TOKEN, BASE_URL, AUTH_EMAIL, BRANCH_FORMAT = fetch_config()
+    (
+        REPO_ROOT,
+        TOKEN,
+        BASE_URL,
+        AUTH_EMAIL,
+        BRANCH_FORMAT,
+        GIT_PAT,
+        FORGE_ROOT,
+    ) = fetch_config()
 
     jira = JIRA(BASE_URL, basic_auth=(AUTH_EMAIL, TOKEN))
 
@@ -233,7 +243,7 @@ def main(args):
     myissue = jira.issue(ticket)
 
     summary = myissue.fields.summary.lower()
-    summary = summary.replace(" ", "-")
+    summary = summary.replace("/", "-or-").replace(" ", "-")
     for bad_char in ["."]:
         summary = summary.replace(bad_char, "")
 
@@ -242,6 +252,24 @@ def main(args):
     branch_name = BRANCH_FORMAT.format(
         issue_type=issue_type, ticket=ticket, summary=summary[0:SUMMARY_MAX_LENGTH]
     )
+
+    # Check to see if the branch exists
+    p = Popen(["git", "show-branch", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
+    rc = p.returncode
+    all_branches = output.decode("utf-8").split("\n")
+
+    if branch_name in all_branches:
+        prepend = (
+            prompt(
+                "Looks like that branch already exists, would you like to "
+                " provide a unique string to prepend on the new branch name?"
+            )
+            .replace(" ", "-")
+            .replace("/", "")
+        )
+
+        branch_name = f"{branch_name}.{prepend}"
 
     print(f"Creating branch {branch_name}")
 
@@ -300,7 +328,7 @@ def main(args):
     branch_url = "/".join([FORGE_URL, repo_url, "tree", branch_name])
 
     print(f"Adding comment with branch {branch_url} name to issue...")
-    jira.add_comment(myissue, f"Jolly Brancher generated {branch_name} at {branch_url}")
+    jira.add_comment(myissue, f"Relevant branch created: {branch_url}")
 
 
 def run():
