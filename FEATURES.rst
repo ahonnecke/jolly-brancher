@@ -28,7 +28,7 @@ Scrape forge for collaborator tags
   In order to facilitate completion the tool scrapes the forge for all known members of the team that might be assigned or interested in the change
 
 Feature Implementation
-============
+======================
 - [x] Auto complete repository name (from existing local repositories)
 - [x] Auto complete tickets by title
 - [x] Create feature branch
