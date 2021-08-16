@@ -12,7 +12,7 @@ def get_all_issues(jira_client, project_name=None):
     chunk_size = 100
     conditions = [
         "assignee = currentUser()",
-        "status = 'In Progress' order by created DESC",
+        "status in ('In Dev', 'In Progress', 'To Do')",
     ]
     if project_name:
         conditions.append(f"project = '{project_name}'")

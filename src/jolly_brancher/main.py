@@ -164,13 +164,10 @@ def main(args):
     parent = decoded.split("...")[1].split(" ")[0]
     upstream, parent_branch = parent.split("/")
     args = parse_args(None, repo_dirs, parent_branch)
+    myissue = None
 
     if args.ticket:
         ticket = args.ticket
-        ticket = ticket.upper()
-
-        # Currently this only fetches some issue, due to some limitation I do not ken
-        myissue = jira_client.issue(ticket)
     else:
         issues = jira_client.get_all_issues()
         ticket_completer = WordCompleter(
@@ -179,12 +176,13 @@ def main(args):
         long_ticket = prompt("Choose ticket: ", completer=ticket_completer)
         ticket = long_ticket.split(":")[0]
 
-        for issue in issues:
-            # @TODO try issue.fields.project.key
-            if str(issue) == ticket:
-                myissue = issue
-                break
-            raise RuntimeError(f"Unable to find issue {issue}")
+    # direct fetching not working for some tickets, not sure why
+    for issue in issues:
+        if str(issue) == ticket:
+            myissue = issue
+            break
+    else:
+        raise RuntimeError(f"Unable to find issue {ticket}")
 
     try:
         summary = myissue.fields.summary.lower()
