@@ -1,7 +1,7 @@
 import pytest
 
-from jolly_brancher.skeleton import fib, main
 import jolly_brancher
+from jolly_brancher.skeleton import fib, main
 
 __author__ = "Ashton Von Honnecke"
 __copyright__ = "Ashton Von Honnecke"
@@ -24,6 +24,7 @@ def test_main(capsys):
     main(["7"])
     captured = capsys.readouterr()
     assert "The 7-th Fibonacci number is 13" in captured.out
+
 
 def test_jolly_brancher():
     pass

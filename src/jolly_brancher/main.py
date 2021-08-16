@@ -28,11 +28,14 @@ import sys
 import warnings
 from subprocess import PIPE, Popen
 
-from jira import JIRA
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
 from jolly_brancher import __version__
+from jolly_brancher.config import fetch_config
+from jolly_brancher.issues import JiraClient
+
+# from jolly_brancher.src.jolly_brancher.issues import get_all_issues
 
 __author__ = "Ashton Von Honnecke"
 __copyright__ = "Ashton Von Honnecke"
@@ -40,49 +43,23 @@ __license__ = "MIT"
 
 _logger = logging.getLogger(__name__)
 
-FILENAME = "jolly_brancher.ini"
+# FILENAME = "jolly_brancher.ini"
 
-# CONFIG VARS
-KEYS_AND_PROMPTS = [
-    ["auth_email", "your login email for Atlassian"],
-    ["base_url", "the base URL for Atlassian (e.g., https://cirrusv2x.atlassian.net)"],
-    [
-        "token",
-        "your Atlassian API token which can be generated here (https://id.atlassian.com/manage-profile/security/api-tokens)",
-    ],
-]
-CONFIG_DIR = os.path.expanduser("~/.config")
-CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
-JIRA_SECTION_NAME = "jira"
+# # CONFIG VARS
+# KEYS_AND_PROMPTS = [
+#     ["auth_email", "your login email for Atlassian"],
+#     ["base_url", "the base URL for Atlassian (e.g., https://cirrusv2x.atlassian.net)"],
+#     [
+#         "token",
+#         "your Atlassian API token which can be generated here (https://id.atlassian.com/manage-profile/security/api-tokens)",
+#     ],
+# ]
+# CONFIG_DIR = os.path.expanduser("~/.config")
+# CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
+# JIRA_SECTION_NAME = "jira"
+# GIT_SECTION_NAME = "git"
+
 SUMMARY_MAX_LENGTH = 35
-GIT_SECTION_NAME = "git"
-
-
-def config_setup():
-    config = configparser.ConfigParser()
-
-    if not os.path.exists(CONFIG_DIR):
-        os.mkdir(CONFIG_DIR)
-
-    if os.path.exists(CONFIG_FILENAME):
-        config.read(CONFIG_FILENAME)
-
-        for key, input_prompt in KEYS_AND_PROMPTS:
-            if (
-                key not in config[JIRA_SECTION_NAME]
-                or config[JIRA_SECTION_NAME][key] == ""
-            ):  # check all entries are present and populated
-                config[JIRA_SECTION_NAME][key] = input(f"Please enter {input_prompt}: ")
-
-    else:
-        warnings.warn(f"~/.config/{FILENAME} does not exist. Creating the file now...")
-        config[JIRA_SECTION_NAME] = {
-            key: input(f"Please enter {input_prompt}: ")
-            for key, input_prompt in KEYS_AND_PROMPTS
-        }  # ask for input and set all entries
-
-    with open(CONFIG_FILENAME, "w") as configfile:
-        config.write(configfile)
 
 
 # ---- CLI ----
@@ -145,53 +122,6 @@ def setup_logging(loglevel):
     )
 
 
-def fetch_config():
-    config_setup()
-
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILENAME)
-
-    default_config = config[JIRA_SECTION_NAME]
-    git_config = config[GIT_SECTION_NAME]
-
-    DEFAULT_BRANCH_FORMAT = "{issue_type}/{ticket}-{summary}"
-
-    return (
-        git_config["repo_root"],
-        default_config["token"],
-        default_config["base_url"],
-        default_config["auth_email"],
-        default_config.get("branch_format", DEFAULT_BRANCH_FORMAT),
-        git_config["pat"],
-        git_config["forge_root"],
-    )
-
-
-def get_all_issues(jira_client, project_name=None):
-    issues = []
-    i = 0
-    chunk_size = 100
-    conditions = [
-        "assignee = currentUser()",
-        "status = 'In Progress' order by created DESC",
-    ]
-    if project_name:
-        conditions.append(f"project = '{project_name}'")
-
-    condition_string = " and ".join(conditions)
-    while True:
-        chunk = jira_client.search_issues(
-            condition_string,
-            startAt=i,
-            maxResults=chunk_size,
-        )
-        i += chunk_size
-        issues += chunk.iterable
-        if i >= chunk.total:
-            break
-    return issues
-
-
 def main(args):
     """Wrapper allowing :func:`fib` to be called with string arguments in a CLI fashion
 
@@ -213,7 +143,7 @@ def main(args):
         FORGE_ROOT,
     ) = fetch_config()
 
-    jira = JIRA(BASE_URL, basic_auth=(AUTH_EMAIL, TOKEN))
+    jira_client = JiraClient(BASE_URL, AUTH_EMAIL, TOKEN)
 
     repo_dirs = os.listdir(REPO_ROOT)
     repo_completer = WordCompleter(repo_dirs)
@@ -232,7 +162,7 @@ def main(args):
     if args.ticket:
         ticket = args.ticket
     else:
-        issues = get_all_issues(jira)
+        issues = jira_client.get_all_issues()
         ticket_completer = WordCompleter(
             [f"{str(x)}: {x.fields.summary} ({x.fields.issuetype})" for x in issues]
         )
@@ -240,7 +170,7 @@ def main(args):
         ticket = long_ticket.split(":")[0]
 
     ticket = ticket.upper()
-    myissue = jira.issue(ticket)
+    myissue = jira_client.issue(ticket)
 
     summary = myissue.fields.summary.lower()
     summary = summary.replace("/", "-or-").replace(" ", "-")
@@ -328,7 +258,7 @@ def main(args):
     branch_url = "/".join([FORGE_URL, repo_url, "tree", branch_name])
 
     print(f"Adding comment with branch {branch_url} name to issue...")
-    jira.add_comment(myissue, f"Relevant branch created: {branch_url}")
+    jira_client.add_comment(myissue, f"Relevant branch created: {branch_url}")
 
 
 def run():
