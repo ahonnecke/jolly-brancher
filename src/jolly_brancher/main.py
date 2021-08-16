@@ -145,9 +145,15 @@ def main(args):
 
     jira_client = JiraClient(BASE_URL, AUTH_EMAIL, TOKEN)
 
+    repo = None
     repo_dirs = os.listdir(REPO_ROOT)
     repo_completer = WordCompleter(repo_dirs)
     repo = prompt("Choose repository: ", completer=repo_completer)
+
+    while repo and repo not in repo_dirs:
+        print(f"{repo} is not a valid repository")
+        repo = prompt("Choose repository: ", completer=repo_completer)
+
     os.chdir(REPO_ROOT + "/" + repo)
 
     p = Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
@@ -161,6 +167,10 @@ def main(args):
 
     if args.ticket:
         ticket = args.ticket
+        ticket = ticket.upper()
+
+        # Currently this only fetches some issue, due to some limitation I do not ken
+        myissue = jira_client.issue(ticket)
     else:
         issues = jira_client.get_all_issues()
         ticket_completer = WordCompleter(
@@ -169,12 +179,21 @@ def main(args):
         long_ticket = prompt("Choose ticket: ", completer=ticket_completer)
         ticket = long_ticket.split(":")[0]
 
-    ticket = ticket.upper()
-    myissue = jira_client.issue(ticket)
+        for issue in issues:
+            # @TODO try issue.fields.project.key
+            if str(issue) == ticket:
+                myissue = issue
+                break
+            raise RuntimeError(f"Unable to find issue {issue}")
 
-    summary = myissue.fields.summary.lower()
+    try:
+        summary = myissue.fields.summary.lower()
+    except AttributeError as e:
+        _logger.exception(e)
+        summary = "None found"
+
     summary = summary.replace("/", "-or-").replace(" ", "-")
-    for bad_char in ["."]:
+    for bad_char in [".", ":"]:
         summary = summary.replace(bad_char, "")
 
     issue_type = str(myissue.fields.issuetype).upper()
