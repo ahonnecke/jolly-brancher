@@ -6,8 +6,6 @@ import webbrowser
 from subprocess import PIPE, Popen
 from typing import List
 
-# import git
-import pyperclip
 from github import Github, GithubException, PullRequest
 from jira import JIRA
 from prompt_toolkit import prompt
@@ -161,6 +159,12 @@ def open_pr(parent, git_pat, org, repo, jira):
 
     github_repo = g.get_repo(f"{org}/{repo}")
 
+    with open(".github/CODEOWNERS") as codeowners:
+        lines = [line.split(" ") for line in codeowners.read().splitlines()]
+
+    owner_map = [line for line in lines if len(line) == 2]
+    owners = {_map[1] for _map in owner_map}
+
     # issues = get_all_issues(jira)
     # ticket_completer = WordCompleter(
     #     [f"{str(x)}: {x.fields.summary} (issue.fields.issuetype)" for x in issues]
@@ -215,23 +219,7 @@ def open_pr(parent, git_pat, org, repo, jira):
     ticket = str(myissue)
     issue_type = myissue.fields.issuetype
 
-    # "TODO populate
-    tag_completer = WordCompleter(
-        [
-            "Red-Two",
-            "WandernSynth",
-            "avrilanne",
-            "avrilanne",
-            "captain-mingo",
-            "clee",
-            "jmstone617",
-            "jmullercuber",
-            "kabuika",
-            "mccheffin",
-            "mimanim",
-            "sirkuttin",
-        ]
-    )
+    tag_completer = WordCompleter(owners)
 
     custom_short_desc = None
     custom_long_desc = None
@@ -270,11 +258,6 @@ def open_pr(parent, git_pat, org, repo, jira):
         # lint_passing=query_yes_no("Are all linters passing? "),
         new_tests=query_yes_no("Did you write any new_tests? ") == "y",
     )
-
-    # @TODO create the PR
-    print("Copied the PR body to your clipboard")
-    pyperclip.copy(pr_body)
-    # print(pr_body)
 
     pr = create_pull(org, branch_name, parent_branch, short_desc, pr_body, github_repo)
 
