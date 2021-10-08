@@ -1,9 +1,18 @@
 """Jira stuff."""
 import logging
+from enum import Enum
 
 from jira import JIRA
 
 _logger = logging.getLogger(__name__)
+
+
+class IssueType(Enum):
+    EPIC = "EPIC"
+    STORY = "STORY"
+    ENHANCEMENT = "ENHANCEMENT"
+    BUG = "BUG"
+    TASK = "TASK"
 
 
 def get_all_issues(jira_client, project_name=None):
@@ -41,7 +50,7 @@ class JiraClient:
         return get_all_issues(self._JIRA, project_name=None)
 
     def issue(self, ticket):
-        self._JIRA.issue(ticket)
+        return self._JIRA.issue(ticket)
 
     def add_comment(self, myissue, comment):
         self._JIRA.add_comment(myissue, comment)
