@@ -26,12 +26,33 @@ Usage
 ==========
 Jolly brancher will, given a repository location create branches from JIRA tickets that automatically include ticket information in the branch, and branch name.
 
-https://user-images.githubusercontent.com/419355/136630453-9b50ee93-bc33-42d9-98aa-ece2702ecfe6.png
+
+.. image:: https://user-images.githubusercontent.com/419355/136826488-41e3e3ab-20c2-4618-a5ee-ab4f1f6b3413.png
+   :width: 600px
 
 It will further create a pull review from an existing branch that is well formed:
 
-https://user-images.githubusercontent.com/419355/136630520-097fb7c5-86f4-43f3-a409-850ebd7cf825.png
+.. image::  https://user-images.githubusercontent.com/419355/136630520-097fb7c5-86f4-43f3-a409-850ebd7cf825.png
+   :width: 600px
 
 It automatically populates the PR description with information from the ticket
 
-https://user-images.githubusercontent.com/419355/136630685-c7c52d09-c51b-47e1-bcd3-60bb05518e5d.png
+.. image::  https://user-images.githubusercontent.com/419355/136630685-c7c52d09-c51b-47e1-bcd3-60bb05518e5d.png
+   :width: 600px
+
+Configuration
+=============
+
+JIRA and git credentials are required in `~/.config/jolly_brancher.ini` in the following format:
+
+::
+
+    [jira]
+    auth_email = <author@domain.com>
+    base_url = https://<subdomain>.atlassian.net
+    token = <basic_auth_token>
+
+    [git]
+    pat = <personal_access_token>
+    repo_root = <~/path/to/local/repositories>
+    forge_root = https://github.com/<organization_name>/
