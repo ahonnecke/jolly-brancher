@@ -71,3 +71,15 @@ JIRA and git credentials are required in `~/.config/jolly_brancher.ini` in the f
     pat = <personal_access_token>
     repo_root = <~/path/to/local/repositories>
     forge_root = https://github.com/<organization_name>/
+
+
+Future Features
+===============
+* Extract the contents of the comments in the branch and construct a description of the changes in the branch
+* Perform in place analysis of the branch and add information to the PR
+  - Were any tests added?
+  - Run unit tests / linter (fetch from github actions)
+  - Include other interesting statistics
+* Automatically tag the owner of the files that were changed    
+* Pull the acceptance criteria from the ticket and format it into a list of checkboxes so the developer can indicate which are met by the current revision
+
