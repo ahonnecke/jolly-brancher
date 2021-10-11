@@ -38,8 +38,6 @@ from jolly_brancher.git import is_repository_dirty, open_pr
 from jolly_brancher.issues import IssueType, JiraClient
 from jolly_brancher.user_input import choose_repo, list_repos, query_yes_no
 
-# from jolly_brancher.src.jolly_brancher.issues import get_all_issues
-
 __author__ = "Ashton Von Honnecke"
 __copyright__ = "Ashton Von Honnecke"
 __license__ = "MIT"
@@ -47,29 +45,7 @@ __license__ = "MIT"
 _logger = logging.getLogger(__name__)
 CONFIG = None
 
-# FILENAME = "jolly_brancher.ini"
-
-# # CONFIG VARS
-# KEYS_AND_PROMPTS = [
-#     ["auth_email", "your login email for Atlassian"],
-#     ["base_url", "the base URL for Atlassian (e.g., https://cirrusv2x.atlassian.net)"],
-#     [
-#         "token",
-#         "your Atlassian API token which can be generated here (https://id.atlassian.com/manage-profile/security/api-tokens)",
-#     ],
-# ]
-# CONFIG_DIR = os.path.expanduser("~/.config")
-# CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
-# JIRA_SECTION_NAME = "jira"
-# GIT_SECTION_NAME = "git"
-
 SUMMARY_MAX_LENGTH = 35
-
-
-# ---- CLI ----
-# The functions defined in this section are wrappers around the main Python
-# API allowing them to be called directly from the terminal as a CLI
-# executable/script.
 
 
 def parse_args(args, repo_dirs, default_parent=None):
@@ -397,15 +373,4 @@ def run():
 
 
 if __name__ == "__main__":
-    # ^  This is a guard statement that will prevent the following code from
-    #    being executed in the case someone imports this file instead of
-    #    executing it as a script.
-    #    https://docs.python.org/3/library/__main__.html
-
-    # After installing your project with pip, users can also run your Python
-    # modules as scripts via the ``-m`` flag, as defined in PEP 338::
-    #
-    #     python -m jolly_brancher.skeleton 42
-    #
-
     run()
