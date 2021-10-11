@@ -2,7 +2,6 @@
 jolly_brancher
 ==============
 
-
 A sweet branch creation suite
 
 
@@ -26,8 +25,24 @@ Usage
 ==========
 Jolly brancher will, given a repository location create branches from JIRA tickets that automatically include ticket information in the branch, and branch name.
 
+Given the repository base directory, you are provided with a list of repositories that you can act on (with tab completion):
 
 .. image:: https://user-images.githubusercontent.com/419355/136826488-41e3e3ab-20c2-4618-a5ee-ab4f1f6b3413.png
+   :width: 600px
+
+After choosing a repository, you can either create a branch based on the contents of a ticket
+
+.. image:: https://user-images.githubusercontent.com/419355/136839214-8beb4b9d-346e-4fcf-9ee8-fd1358915a91.png
+   :width: 600px
+
+Alternatively, if the branch name is well formed, you can create a PR against the parent of the branch, the tool will ask some questions and construct the body of the PR (it scans the CODEOWNERS file and suggests those users as tags), and create it:
+
+.. image::  https://user-images.githubusercontent.com/419355/136839631-232dacf2-b884-4545-ba09-02a133123852.png
+   :width: 600px
+
+If you decline to do so, then you will be redirected to the branch creation flow:
+
+.. image::  https://user-images.githubusercontent.com/419355/136839347-81d64f0d-d74d-4c35-b37e-adb787c832b0.png
    :width: 600px
 
 It will further create a pull review from an existing branch that is well formed:
