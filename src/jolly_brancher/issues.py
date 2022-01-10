@@ -13,6 +13,7 @@ class IssueType(Enum):
     ENHANCEMENT = "ENHANCEMENT"
     BUG = "BUG"
     TASK = "TASK"
+    SUBTASK = "SUB-TASK"
 
 
 def get_all_issues(jira_client, project_name=None):
@@ -54,3 +55,30 @@ class JiraClient:
 
     def add_comment(self, myissue, comment):
         self._JIRA.add_comment(myissue, comment)
+
+    def add_comment_table(self, issue, body: dict):
+        pass
+        # @TODO finish this
+        # ||heading 1||heading 2||heading 3||
+        # |col A1|col A2|col A3|
+        # |col B1|col B2|col B3|
+
+    def add_comment_panel(self, issue, title, body):
+        head = (
+            "{"
+            + "|".join(
+                [
+                    f"panel:title={title}",
+                    "borderStyle=solid",
+                    "borderColor=#ccc",
+                    "titleBGColor=#F7D6C1",
+                    "bgColor=#FFFFCE",
+                ]
+            )
+            + "}"
+        )
+
+        foot = "{panel}"
+        pr_comment = "\n".join([head, body, foot])
+
+        self.add_comment(issue, pr_comment)

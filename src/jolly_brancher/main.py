@@ -213,7 +213,13 @@ def main(args):
         parent = "upstream/dev"
         pass
 
-    upstream, parent_branch = parent.split("/")
+    try:
+        upstream, parent_branch = parent.split("/")
+    except ValueError:
+        upstream, parent_type, branch = parent.split("/")
+        parent_branch = "/".join([parent_type, branch])
+        pass
+
     args = parse_args(None, repo_dirs, parent_branch)
     myissue = None
     branch_name = False
@@ -361,7 +367,11 @@ def main(args):
     )
 
     print(f"Adding comment with branch {branch_url} name to issue...")
-    jira_client.add_comment(myissue, f"Relevant branch created: {branch_url}")
+    jira_client.add_comment_panel(
+        myissue,
+        "Automated action performed",
+        f"(/) [Relevant branch created|{branch_url}]",
+    )
 
 
 def run():

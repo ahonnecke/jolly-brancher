@@ -120,13 +120,22 @@ def create_pull(
         if err.status == 422 and field == "head" and code == "invalid":
             print("Invalid HEAD, does the remote branch exist?")
             sys.exit(1)
-
-        if err.status == 422 and message.startswith("A pull request already exists"):
+        elif err.status == 422 and not message:
+            print(f"Looks like you're failing to PR against {head}")
+        elif err.status == 422 and message.startswith("A pull request already exists"):
             print("You already have a PR for that branch... exiting")
             sys.exit(1)
 
+        pr_against_dev()
+        return create_pull(org, branch_name, "dev", short_desc, pr_body, github_repo)
 
-def open_pr(parent, git_pat, org, repo, jira):
+
+def pr_against_dev():
+    if not query_yes_no("Do you want to try opening the PR against dev?"):
+        sys.exit(1)
+
+
+def open_pr(parent, git_pat, org, repo, jira_client):
     try:
         g = Github(git_pat)
     except Exception as e:
@@ -197,7 +206,7 @@ def open_pr(parent, git_pat, org, repo, jira):
 
     print(f"Identified ticket {ticket}")
 
-    myissue = jira.issue(ticket)
+    myissue = jira_client.issue(ticket)
 
     if not myissue:
         print("Unable to find ticket for branch")
@@ -264,8 +273,12 @@ def open_pr(parent, git_pat, org, repo, jira):
     # @TODO post a thing to slack if it's not a draft
 
     clean_url = urllib.parse.quote_plus(pr.html_url)
-    pr_comment = f'Created Pull Request "{pr.title}" at \n {clean_url}'
+    dirty_url = pr.html_url
 
-    jira.add_comment(myissue, pr_comment)
+    print(f"Not using, {clean_url}, using {dirty_url}")
+
+    jira_client.add_comment_panel(
+        myissue, "Automated action performed", "\n".join(["(/)" + pr.title, dirty_url])
+    )
 
     webbrowser.open(pr.html_url)
