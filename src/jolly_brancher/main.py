@@ -1,183 +1,44 @@
 """
-This is a skeleton file that can serve as a starting point for a Python
-console script. To run this script uncomment the following lines in the
-``[options.entry_points]`` section in ``setup.cfg``::
-
-    console_scripts =
-         fibonacci = jolly_brancher.skeleton:run
-
-Then run ``pip install .`` (or ``pip install -e .`` for editable mode)
-which will install the command ``fibonacci`` inside your current environment.
-
-Besides console scripts, the header (i.e. until ``_logger``...) of this file can
-also be used as template for Python modules.
-
-Note:
-    This skeleton file can be safely removed if not needed!
-
-References:
-    - https://setuptools.readthedocs.io/en/latest/userguide/entry_point.html
-    - https://pip.pypa.io/en/stable/reference/pip_install
+Main entrypoint for the jolly_brancher library.
 """
-import argparse
-import configparser
+
 import logging
 import os
 import subprocess
 import sys
 import urllib
-import warnings
 from subprocess import PIPE, Popen
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from jolly_brancher import __version__
-from jolly_brancher.config import fetch_config
-from jolly_brancher.git import is_repository_dirty, open_pr
-from jolly_brancher.issues import IssueType, JiraClient
-from jolly_brancher.user_input import choose_repo, list_repos, query_yes_no
+from jolly_brancher.config import forge_root, git_pat, read_config
+from jolly_brancher.git import (
+    FORGE_URL,
+    fetch_branch_and_parent,
+    is_repository_dirty,
+    open_pr,
+)
+from jolly_brancher.issues import IssueStatus, IssueType, JiraClient
+from jolly_brancher.logging import setup_logging
+from jolly_brancher.user_input import choose_repo, list_repos, parse_args, query_yes_no
 
 __author__ = "Ashton Von Honnecke"
 __copyright__ = "Ashton Von Honnecke"
 __license__ = "MIT"
 
+
+setup_logging(logging.DEBUG)
 _logger = logging.getLogger(__name__)
-CONFIG = None
 
-SUMMARY_MAX_LENGTH = 35
-
-
-def parse_args(args, repo_dirs, default_parent=None):
-    """
-    Extract the CLI arguments from argparse
-    """
-    parser = argparse.ArgumentParser(description="Sweet branch creation tool")
-
-    parser.add_argument(
-        "--parent",
-        help="Parent branch",
-        default=default_parent,
-        required=False,
-    )
-
-    parser.add_argument(
-        "--ticket", help="Ticket to build branch name from", required=False
-    )
-
-    parser.add_argument(
-        "--version",
-        action="version",
-        version="jolly_brancher {ver}".format(ver=__version__),
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="loglevel",
-        help="set loglevel to INFO",
-        action="store_const",
-        const=logging.INFO,
-    )
-    parser.add_argument(
-        "-vv",
-        "--very-verbose",
-        dest="loglevel",
-        help="set loglevel to DEBUG",
-        action="store_const",
-        const=logging.DEBUG,
-    )
-    parser.add_argument(
-        "--repo",
-        help="Repository to operate on",
-        choices=repo_dirs,
-        required=False,
-    )
-
-    return parser.parse_args(args)
-
-
-def setup_logging(loglevel):
-    """Setup basic logging
-
-    Args:
-      loglevel (int): minimum loglevel for emitting messages
-    """
-    logformat = "[%(asctime)s] %(levelname)s:%(name)s:%(message)s"
-    logging.basicConfig(
-        level=loglevel, stream=sys.stdout, format=logformat, datefmt="%Y-%m-%d %H:%M:%S"
-    )
-
-
-def parse_branch_name(branch_name):
-    if "/" not in branch_name:
-        return False, False
-
-    return branch_name.split("/")
-
-
-def parse_issue_type(branch_name):
-    # valid format
-    # TASK/V2X-2200-migrate-the-tim-manager-cicd-pipeli
-
-    if "/" not in branch_name:
-        return False
-
-    issue_type_string, ticket_name = parse_branch_name(branch_name)
-
-    try:
-        return IssueType(issue_type_string)
-    except AttributeError as e:
-        return False
-
-
-def chdir_to_repo(repo_name):
-    try:
-        os.chdir(CONFIG[0] + "/" + repo_name)
-    except FileNotFoundError as e:
-        print(f"{repo_name} is not a valid repository, exiting")
-        sys.exit()
-
-
-def fetch_branch_and_parent(repo_name):
-    chdir_to_repo(repo_name)
-    p = Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
-    rc = p.returncode
-
-    decoded = output.decode("utf-8")
-
-    branch_name, remainder = decoded.replace("## ", "").split("...")
-    parent = remainder.split(" ")[0]
-    return branch_name, parent
-
-
-def read_config():
-    global CONFIG
-
-    if not CONFIG:
-        CONFIG = (
-            REPO_ROOT,
-            TOKEN,
-            BASE_URL,
-            AUTH_EMAIL,
-            BRANCH_FORMAT,
-            GIT_PAT,
-            FORGE_ROOT,
-        ) = fetch_config()
+SUMMARY_MAX_LENGTH = 80
 
 
 def main(args):
-    """Wrapper allowing :func:`fib` to be called with string arguments in a CLI fashion
-
-    Instead of returning the value from :func:`fib`, it prints the result to the
-    ``stdout`` in a nicely formatted message.
-
-    Args:
-      args (List[str]): command line parameters as list of strings
-          (for example  ``["--verbose", "42"]``).
+    """
+    Main entrypoint for the jolly_brancher library.
     """
 
-    read_config()
     (
         REPO_ROOT,
         TOKEN,
@@ -186,7 +47,7 @@ def main(args):
         BRANCH_FORMAT,
         GIT_PAT,
         FORGE_ROOT,
-    ) = CONFIG
+    ) = read_config()
 
     jira_client = JiraClient(BASE_URL, AUTH_EMAIL, TOKEN)
     repo_dirs = list_repos(REPO_ROOT)
@@ -231,9 +92,10 @@ def main(args):
 
     # Go look at repo
     if branch_name:
-        if issue_type := parse_issue_type(branch_name):
+        if issue_type := IssueType.from_branch_name(branch_name):
             print("branch name is valid")
-            ticket_name = parse_branch_name(branch_name)[1]
+            # @TODO see if we can reuse issue_type from above
+            ticket_name = IssueType.parse_branch_name(branch_name)[1]
 
             do_open_pr = query_yes_no(
                 f"{repo} looks like a jolly branched branch for"
@@ -241,9 +103,9 @@ def main(args):
             )
 
             if do_open_pr:
-                org = CONFIG[6].split("/")[-1]
-                open_pr(parent, CONFIG[5], org, repo, jira_client)
-                sys.exit()
+                org = forge_root().split("/")[-1]
+                open_pr(parent, git_pat(), org, repo, jira_client)
+                sys.exit(0)
     else:
         print("branch name is non-conforming")
 
@@ -267,6 +129,10 @@ def main(args):
     else:
         raise RuntimeError(f"Unable to find issue {ticket}")
 
+    if str(issue.fields.status) in [IssueStatus.TODO.value]:
+        # Move the ticket from opened to closed.
+        jira_client.transition_issue(ticket, IssueStatus.IN_PROGRESS.value)
+
     try:
         summary = myissue.fields.summary.lower()
     except AttributeError as e:
@@ -281,7 +147,7 @@ def main(args):
 
     branch_name = BRANCH_FORMAT.format(
         issue_type=issue_type, ticket=ticket, summary=summary[0:SUMMARY_MAX_LENGTH]
-    )
+    ).replace(",", "")
 
     # Check to see if the branch exists
     p = Popen(["git", "show-branch", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
@@ -300,6 +166,9 @@ def main(args):
         )
 
         branch_name = f"{branch_name}.{prepend}"
+
+    # strip last word (likely partial)
+    branch_name = "-".join(branch_name.split("-")[0:-1])
 
     print(f"Creating branch {branch_name}")
 
@@ -343,12 +212,11 @@ def main(args):
     try:
         subprocess.run(local_branch_cmd, check=True)
     except subprocess.CalledProcessError:
+        breakpoint()
         # @TODO check to see if the branch exists, either by catching it
         # here, or by checking git above
-        print(f"Failed to create branch, does it already exist? ")
+        print("Failed to create branch, does it already exist? ")
         sys.exit(1)
-
-    FORGE_URL = "https://github.com/"
 
     # push branch to remote repo
     print("Pushing to remote repo...")

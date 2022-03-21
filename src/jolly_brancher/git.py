@@ -3,6 +3,7 @@ import os
 import sys
 import urllib
 import webbrowser
+from dataclasses import dataclass
 from subprocess import PIPE, Popen
 from typing import List
 
@@ -11,10 +12,14 @@ from jira import JIRA
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
+from jolly_brancher.config import repo_parent
+from jolly_brancher.logging import setup_logging
 from jolly_brancher.user_input import query_yes_no
 
+setup_logging(logging.DEBUG)
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
+
+FORGE_URL = "https://github.com/"
 
 
 def body(
@@ -22,7 +27,7 @@ def body(
     long_desc: str,
     what_type: str,
     ticket: str,
-    detail: str,
+    details: List[str],
     tags: List[str],
     unit_passing: bool,
     lint_passing: bool,
@@ -33,6 +38,7 @@ def body(
     new_tests = "x" if new_tests else " "
 
     tag_block = "".join([f"@{tag}\n" for tag in tags])
+    detail = "\n".join(details)
 
     return (
         f"# {short_desc} against {ticket}\n"
@@ -42,16 +48,19 @@ def body(
         f"What is it accomplishing? | {long_desc}\n"
         f"JIRA ticket | [{ticket}](https://cirrusv2x.atlassian.net/browse/{ticket})\n"
         f"-----------------------------------------------------------------\n"
+        f"## Goal\n"
+        f"> {long_desc}.\n"
+        f"----------------------------------------------------------------\n"
         f"## What\n"
         f"> {short_desc}.\n"
         f"----------------------------------------------------------------\n"
-        f"## Detail\n"
-        f"> {detail}.\n"
+        f"## Details\n"
+        f"> {detail}\n"
         f"----------------------------------------------------------------\n"
         f"## Tests\n"
         f"- [{units}] All unit tests are passing\n"
         f"- [{linters}] All linters are passing\n"
-        f"- [{new_tests}] New tests were added \n"
+        f"- [{new_tests}] New tests were added or modified\n"
         f"## Interested parties\n"
         f"{tag_block}\n"
     )
@@ -109,7 +118,7 @@ def create_pull(
             body=pr_body,
             head=head,
             base=base,
-            draft=query_yes_no("Open as a draft? "),
+            draft=False,
         )
     except GithubException as err:
         first_error = err.data["errors"][0]
@@ -117,11 +126,13 @@ def create_pull(
         code = first_error.get("code")
         message = first_error.get("message")
 
+        print(f"Failed to create PR becaues {message}")
         if err.status == 422 and field == "head" and code == "invalid":
             print("Invalid HEAD, does the remote branch exist?")
             sys.exit(1)
         elif err.status == 422 and not message:
             print(f"Looks like you're failing to PR against {head}")
+            print(f"Possibly because {err.message}?")
         elif err.status == 422 and message.startswith("A pull request already exists"):
             print("You already have a PR for that branch... exiting")
             sys.exit(1)
@@ -161,13 +172,32 @@ def open_pr(parent, git_pat, org, repo, jira_client):
 
     parent_parts = parent.split("/")
     upstream = parent_parts[0]
-    parent_branch = parent_parts[1:]
+    parent_branch = parent_parts[1:][0]
     # upstream, parent_branch = parent.split("/")
 
     # breakpoint()
 
     github_repo = g.get_repo(f"{org}/{repo}")
 
+    ignored = ["bots", "release-admins"]
+
+    teams = []
+    raw_teams = []
+    members = []
+
+    try:
+        raw_teams = github_repo.get_teams()
+
+        teams = [y for y in raw_teams if y.name not in ignored]
+
+        for team in teams:
+            for member in team.get_members():
+                members.append(member)
+    except Exception:
+        breakpoint()
+        pass
+
+    tags = [x.login for x in members]
     with open(".github/CODEOWNERS") as codeowners:
         lines = [line.split(" ") for line in codeowners.read().splitlines()]
 
@@ -182,14 +212,22 @@ def open_pr(parent, git_pat, org, repo, jira_client):
 
     # get branch
 
-    cmd = ["git", "branch", "--show-current"]
+    branch_name = run_git_cmd(["branch", "--show-current"]).strip("\n")
 
-    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
-    rc = p.returncode
-    branch_name = output.decode("utf-8").strip("\n")
+    print(f"Fetching {branch_name} branch")
 
-    print(f"Using the {branch_name} branch")
+    try:
+        Branch = github_repo.get_branch(branch=branch_name)
+    except Exception as e:
+        pass
+        # LOGGER.error(f"Failed to fetch branch {branch_name}")
+        # github.GithubException.GithubException: 404 {"message": "Branch
+        # not found", "documentation_url":
+        # "https://docs.github.com/rest/reference/repos#get-a-branch"}
+
+    filenames = get_filenames(parent_branch, upstream)
+    commits = get_unmerged_commits(parent_branch, upstream)
+    commits_unique_to_this_branch = [x for x in commits if x.is_new and not x.is_merge]
 
     parts = branch_name.split("/")
     if len(parts) == 3:
@@ -219,53 +257,42 @@ def open_pr(parent, git_pat, org, repo, jira_client):
     raws = [x for x in myissue.raw["fields"]]
     things = [myissue.raw["fields"][x] for x in raws]
 
-    # pp.pprint(things)
-    # breakpoint()
+    details = []
+    print("Listing commits in this PR, Y to add, n to decline")
+    for commit in commits_unique_to_this_branch:
+        if query_yes_no(commit.body):
+            details.append(commit.body)
 
+    short_desc = ""
+    if len(details) == 1:
+        short_desc = details[0]
+    elif len(details) > 1:
+        short_desc = prompt(
+            "Choose the title comment: ", completer=WordCompleter(details)
+        )
     long_desc = myissue.fields.summary
-    short_desc = long_desc
-    detail = myissue.fields.description
+
     ticket = str(myissue)
     issue_type = myissue.fields.issuetype
 
-    tag_completer = WordCompleter(owners)
-
-    custom_short_desc = None
-    custom_long_desc = None
-
-    custom_detail = prompt("Is there anything else that you would like to add? ")
-
-    verbage = "Tag someone: "
-
-    tags = []
-    while True:
-        if len(tags):
-            verbage = "Tag someone else: "
-
-        tag = prompt(verbage, completer=tag_completer)
-        if tag:
-            tags.append(tag)
-        else:
-            break
-
-    if custom_long_desc := prompt("Short description of the changes in this PR? "):
-        custom_short_desc = custom_long_desc
-
-    short_desc = short_desc
+    tests = 0
+    for filename in filenames:
+        if "test" in str(filename):
+            tests = tests + 1
 
     # @TODO calculate tests and linter
     pr_body = body(
-        (custom_short_desc or short_desc)[:35],
-        (custom_long_desc or long_desc),
+        (short_desc)[:35],
+        long_desc,
         issue_type,
         ticket,
-        detail=(custom_detail or detail),
+        details=details,
         tags=tags,
         unit_passing=True,
         lint_passing=True,
         # unit_passing=query_yes_no("Are all unit tests passing? "),
         # lint_passing=query_yes_no("Are all linters passing? "),
-        new_tests=query_yes_no("Did you write any new_tests? ") == "y",
+        new_tests=tests > 0,
     )
 
     pr = create_pull(org, branch_name, parent_branch, short_desc, pr_body, github_repo)
@@ -278,7 +305,78 @@ def open_pr(parent, git_pat, org, repo, jira_client):
     print(f"Not using, {clean_url}, using {dirty_url}")
 
     jira_client.add_comment_panel(
-        myissue, "Automated action performed", "\n".join(["(/)" + pr.title, dirty_url])
+        myissue, "Automated action performed", "\n".join(["(/) " + pr.title, dirty_url])
     )
 
     webbrowser.open(pr.html_url)
+
+
+def chdir_to_repo(repo_name):
+    try:
+        os.chdir(repo_parent() / repo_name)
+    except FileNotFoundError as e:
+        print(f"{repo_name} is not a valid repository, exiting")
+        sys.exit()
+
+
+def fetch_branch_and_parent(repo_name):
+    chdir_to_repo(repo_name)
+    p = Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
+    rc = p.returncode
+
+    decoded = output.decode("utf-8")
+
+    branch_name, remainder = decoded.replace("## ", "").split("...")
+    parent = remainder.split(" ")[0]
+    return branch_name, parent
+
+
+def run_git_cmd(cmd):
+    cmd.insert(0, "git")
+
+    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
+    rc = p.returncode
+
+    p_status = p.wait()
+    return output.decode("utf-8")
+
+
+@dataclass
+class Commit:
+    """Small class to hold oneline commit info."""
+
+    hash: str
+    body: str
+    is_new: bool
+    is_merge: bool
+
+    @staticmethod
+    def from_log(log):
+        try:
+            exists_in_another_pr = log[-1] == ")" and log[-5:-3] == "(#"
+        except IndexError:
+            return None
+
+        parts = log.split(" ")
+        body = " ".join(parts[1:])
+
+        is_merge = bool("Merge branch" in body)
+
+        return Commit(
+            hash=parts[0], body=body, is_new=not exists_in_another_pr, is_merge=is_merge
+        )
+
+
+def get_unmerged_commits(parent: str, remote: str) -> List[Commit]:
+    commits = run_git_cmd(["log", "--pretty=oneline", f"{remote}/{parent}.."]).split(
+        "\n"
+    )
+
+    all = [Commit.from_log(commit) for commit in commits]
+    return [x for x in all if x]
+
+
+def get_filenames(parent: str, remote: str) -> List[Commit]:
+    return run_git_cmd(["diff", f"{remote}/{parent}..", "--name-only"]).split("\n")
