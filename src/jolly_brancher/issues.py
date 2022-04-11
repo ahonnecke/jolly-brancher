@@ -6,11 +6,14 @@ from jira import JIRA
 
 _logger = logging.getLogger(__name__)
 
+USER_SCOPE = "USER"
+
 
 class IssueStatus(Enum):
     TODO = "To Do"
     IN_DEV = "In Dev"
     IN_PROGRESS = "In Progress"
+    SELECTED_FOR_DEVELOPMENT = "Selected for Development"
 
     @staticmethod
     def selectable_statuses():
@@ -18,6 +21,7 @@ class IssueStatus(Enum):
             IssueStatus.IN_DEV,
             IssueStatus.IN_PROGRESS,
             IssueStatus.TODO,
+            IssueStatus.SELECTED_FOR_DEVELOPMENT,
         ]
 
 
@@ -53,27 +57,37 @@ class IssueType(Enum):
         return branch_name.split("/")
 
 
-def get_all_issues(jira_client, project_name=None):
+def get_all_issues(jira_client, project_name=None, scope=None):
     issues = []
     i = 0
     chunk_size = 100
-    user_conditions = [
-        "assignee = currentUser()",
-    ]
 
     status_filter = ",".join(
         [f"'{str(x.value)}'" for x in IssueStatus.selectable_statuses()]
     )
 
+    users = ["currentUser()"]
+
+    if scope != USER_SCOPE:
+        users.append("EMPTY")
+
+    user_filter = ",".join(users)
+
     # TODO, allow for searching for unassigned tix
     conditions = [
-        "assignee = currentUser()",
+        f"assignee in ({user_filter})",
         f"status in ({status_filter})",
     ]
+    order_by = "assignee,created DESC"
+
     if project_name:
         conditions.append(f"project = '{project_name}'")
 
     condition_string = " and ".join(conditions)
+
+    if order_by:
+        condition_string = condition_string + f" order by {order_by}"
+
     while True:
         chunk = jira_client.search_issues(
             condition_string,
@@ -82,6 +96,13 @@ def get_all_issues(jira_client, project_name=None):
         )
         i += chunk_size
         issues += chunk.iterable
+
+        if not chunk.iterable[0].fields.assignee:
+            # If the furst result is empty we have fetched all the
+            # tickets assigned to the current user, and a page of
+            # unassigned tickets
+            break
+
         if i >= chunk.total:
             break
     return issues
@@ -90,11 +111,14 @@ def get_all_issues(jira_client, project_name=None):
 class JiraClient:
     """Wrapper class for external jira library."""
 
-    def __init__(self, url, email, token):
+    def __init__(self, url, email, token, user_scope=False):
         self._JIRA = JIRA(url, basic_auth=(email, token))
+        self.scope = False
+        if user_scope:
+            self.scope = USER_SCOPE
 
     def get_all_issues(self, project_name=None):
-        return get_all_issues(self._JIRA, project_name=None)
+        return get_all_issues(self._JIRA, project_name=project_name, scope=self.scope)
 
     def issue(self, ticket):
         return self._JIRA.issue(ticket)

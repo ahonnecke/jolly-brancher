@@ -49,10 +49,14 @@ def main(args):
         FORGE_ROOT,
     ) = read_config()
 
-    jira_client = JiraClient(BASE_URL, AUTH_EMAIL, TOKEN)
     repo_dirs = list_repos(REPO_ROOT)
 
     args = parse_args(None, repo_dirs)
+
+    jira_client = JiraClient(
+        BASE_URL, AUTH_EMAIL, TOKEN, user_scope=(not args.unassigned)
+    )
+
     repo = args.repo or choose_repo(REPO_ROOT)
 
     if is_repository_dirty(REPO_ROOT, repo):
@@ -251,4 +255,5 @@ def run():
 
 
 if __name__ == "__main__":
+    print("fuck yo")
     run()

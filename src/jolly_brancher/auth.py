@@ -1,1 +1,0 @@
-from jira import JIRA

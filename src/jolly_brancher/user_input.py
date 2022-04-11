@@ -111,5 +111,12 @@ def parse_args(args, repo_dirs, default_parent=None):
         choices=repo_dirs,
         required=False,
     )
+    parser.add_argument(
+        "-u",
+        "--unassigned",
+        help="Include unassigned tickets",
+        action="store_true",
+        default=False,
+    )
 
     return parser.parse_args(args)
