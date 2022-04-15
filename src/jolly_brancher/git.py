@@ -280,6 +280,8 @@ def open_pr(parent, git_pat, org, repo, jira_client):
         if "test" in str(filename):
             tests = tests + 1
 
+    short_desc = f"{ticket} - {short_desc}"
+
     # @TODO calculate tests and linter
     pr_body = body(
         (short_desc)[:35],

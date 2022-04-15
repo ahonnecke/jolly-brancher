@@ -133,7 +133,10 @@ def main(args):
     else:
         raise RuntimeError(f"Unable to find issue {ticket}")
 
-    if str(issue.fields.status) in [IssueStatus.TODO.value]:
+    if str(issue.fields.status) in [
+        IssueStatus.TODO.value,
+        IssueStatus.SELECTED_FOR_DEVELOPMENT.value,
+    ]:
         # Move the ticket from opened to closed.
         jira_client.transition_issue(ticket, IssueStatus.IN_PROGRESS.value)
 
