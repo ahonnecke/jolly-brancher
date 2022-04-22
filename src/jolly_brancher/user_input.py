@@ -47,13 +47,17 @@ def list_repos(repo_root):
     return os.listdir(repo_root)
 
 
-def choose_repo(repo_root):
+def choose_repo(repo_root: str, yes_to_all: bool):
     CWD = os.getcwd()
 
     leaf = CWD.split("/")[-1]
     repo_dirs = list_repos(repo_root)
 
     if leaf in repo_dirs:
+        if yes_to_all:
+            print(f"Using {leaf}...")
+            return leaf
+
         if query_yes_no(f"Use {leaf}?"):
             return leaf
 
@@ -115,6 +119,13 @@ def parse_args(args, repo_dirs, default_parent=None):
         "-u",
         "--unassigned",
         help="Include unassigned tickets",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        help="Answer yes to everything",
         action="store_true",
         default=False,
     )

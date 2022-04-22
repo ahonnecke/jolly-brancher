@@ -57,7 +57,7 @@ def main(args):
         BASE_URL, AUTH_EMAIL, TOKEN, user_scope=(not args.unassigned)
     )
 
-    repo = args.repo or choose_repo(REPO_ROOT)
+    repo = args.repo or choose_repo(REPO_ROOT, args.yes)
 
     if is_repository_dirty(REPO_ROOT, repo):
         if not query_yes_no(f"The {repo} repository is dirty, proceed? "):
@@ -101,10 +101,14 @@ def main(args):
             # @TODO see if we can reuse issue_type from above
             ticket_name = IssueType.parse_branch_name(branch_name)[1]
 
-            do_open_pr = query_yes_no(
-                f"{repo} looks like a jolly branched branch for"
-                f" {ticket_name}, do you want to open a PR? "
-            )
+            if args.yes:
+                print(f"Opening PR for {ticket_name}")
+                do_open_pr = True
+            else:
+                do_open_pr = query_yes_no(
+                    f"{repo} looks like a jolly branched branch for"
+                    f" {ticket_name}, do you want to open a PR? "
+                )
 
             if do_open_pr:
                 org = forge_root().split("/")[-1]
