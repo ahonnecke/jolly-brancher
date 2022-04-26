@@ -258,10 +258,13 @@ def open_pr(parent, git_pat, org, repo, jira_client):
     things = [myissue.raw["fields"][x] for x in raws]
 
     details = []
-    print("Listing commits in this PR, Y to add, n to decline")
-    for commit in commits_unique_to_this_branch:
-        if query_yes_no(commit.body):
-            details.append(commit.body)
+    if len(commits_unique_to_this_branch) == 1:
+        details.append(commits_unique_to_this_branch[0].body)
+    else:
+        print("Listing commits in this PR, Y to add, n to decline")
+        for commit in commits_unique_to_this_branch:
+            if query_yes_no(commit.body):
+                details.append(commit.body)
 
     short_desc = ""
     if len(details) == 1:
