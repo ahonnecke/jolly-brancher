@@ -1,6 +1,7 @@
 """
 Main entrypoint for the jolly_brancher library.
 """
+# pylint: disable=too-many-arguments,invalid-name,too-many-locals
 
 import logging
 import os
@@ -38,6 +39,7 @@ def main(args):
     """
     Main entrypoint for the jolly_brancher library.
     """
+    # pylint: disable=too-many-branches,too-many-statements
 
     (
         REPO_ROOT,
@@ -66,9 +68,8 @@ def main(args):
 
     os.chdir(REPO_ROOT + "/" + repo)
 
-    p = Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
-    rc = p.returncode
+    with Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE) as p:
+        output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
 
     decoded = output.decode("utf-8")
     try:
@@ -161,10 +162,11 @@ def main(args):
     ).replace(",", "")
 
     # Check to see if the branch exists
-    p = Popen(["git", "show-branch", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
-    rc = p.returncode
-    all_branches = output.decode("utf-8").split("\n")
+    with Popen(
+        ["git", "show-branch", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE
+    ) as p:
+        output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
+        all_branches = output.decode("utf-8").split("\n")
 
     if branch_name in all_branches:
         prepend = (
@@ -183,9 +185,8 @@ def main(args):
 
     print(f"Creating branch {branch_name}")
 
-    p = Popen(["git", "remote", "-v"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
-    rc = p.returncode
+    with Popen(["git", "remote", "-v"], stdin=PIPE, stdout=PIPE, stderr=PIPE) as p:
+        output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
 
     decoded = output.decode("utf-8")
     remotes = {}
