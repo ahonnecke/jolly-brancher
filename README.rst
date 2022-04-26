@@ -2,6 +2,10 @@
 jolly_brancher
 ==============
 
+.. image:: https://results.pre-commit.ci/badge/github/ahonnecke/jolly-brancher/main.svg
+   :target: https://results.pre-commit.ci/latest/github/ahonnecke/jolly-brancher/main
+   :alt: pre-commit.ci status
+
 A sweet branch creation suite
 
 
@@ -80,6 +84,5 @@ Future Features
   - Were any tests added?
   - Run unit tests / linter (fetch from github actions)
   - Include other interesting statistics
-* Automatically tag the owner of the files that were changed    
+* Automatically tag the owner of the files that were changed
 * Pull the acceptance criteria from the ticket and format it into a list of checkboxes so the developer can indicate which are met by the current revision
-
