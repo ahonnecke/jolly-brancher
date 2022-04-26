@@ -9,8 +9,6 @@ from prompt_toolkit.completion import WordCompleter
 
 from jolly_brancher import __version__
 
-_logger = logging.getLogger(__name__)
-
 
 def query_yes_no(question, default="yes"):
     """Ask a yes/no question via input() and return their answer.
@@ -24,23 +22,24 @@ def query_yes_no(question, default="yes"):
     """
     valid = {"yes": True, "y": True, "ye": True, "no": False, "n": False}
     if default is None:
-        prompt = " [y/n] "
+        _prompt = " [y/n] "
     elif default == "yes":
-        prompt = " [Y/n] "
+        _prompt = " [Y/n] "
     elif default == "no":
-        prompt = " [y/N] "
+        _prompt = " [y/N] "
     else:
-        raise ValueError("invalid default answer: '%s'" % default)
+        raise ValueError(f"invalid default answer: '{default}'")
 
     while True:
-        sys.stdout.write(question + prompt)
+        sys.stdout.write(question + _prompt)
         choice = input().lower()
         if default is not None and choice == "":
             return valid[default]
-        elif choice in valid:
+
+        if choice in valid:
             return valid[choice]
-        else:
-            sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
+
+        sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
 
 
 def list_repos(repo_root):
@@ -48,9 +47,9 @@ def list_repos(repo_root):
 
 
 def choose_repo(repo_root: str, yes_to_all: bool):
-    CWD = os.getcwd()
+    current_dir = os.getcwd()
 
-    leaf = CWD.split("/")[-1]
+    leaf = current_dir.split("/")[-1]
     repo_dirs = list_repos(repo_root)
 
     if leaf in repo_dirs:
@@ -91,7 +90,7 @@ def parse_args(args, repo_dirs, default_parent=None):
     parser.add_argument(
         "--version",
         action="version",
-        version="jolly_brancher {ver}".format(ver=__version__),
+        version=f"jolly_brancher {__version__}",
     )
     parser.add_argument(
         "-v",

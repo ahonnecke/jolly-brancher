@@ -8,7 +8,6 @@ from subprocess import PIPE, Popen
 from typing import List
 
 from github import Github, GithubException, PullRequest
-from jira import JIRA
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
@@ -20,6 +19,8 @@ setup_logging(logging.DEBUG)
 LOGGER = logging.getLogger(__name__)
 
 FORGE_URL = "https://github.com/"
+
+# pylint: disable=too-many-arguments,invalid-name
 
 
 def body(
@@ -35,7 +36,7 @@ def body(
 ):
     units = "x" if unit_passing else " "
     linters = "x" if lint_passing else " "
-    new_tests = "x" if new_tests else " "
+    _new_tests = "x" if new_tests else " "
 
     tag_block = "".join([f"@{tag}\n" for tag in tags])
     detail = "\n".join(details)
@@ -60,7 +61,7 @@ def body(
         f"## Tests\n"
         f"- [{units}] All unit tests are passing\n"
         f"- [{linters}] All linters are passing\n"
-        f"- [{new_tests}] New tests were added or modified\n"
+        f"- [{_new_tests}] New tests were added or modified\n"
         f"## Interested parties\n"
         f"{tag_block}\n"
     )
@@ -69,9 +70,11 @@ def body(
 def is_repository_dirty(repo_root, repo_name):
     os.chdir(repo_root + "/" + repo_name)
 
-    p = Popen(["git", "status", "--porcelain"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
-    rc = p.returncode
+    p = Popen(  # pylint: disable=consider-using-with
+        ["git", "status", "--porcelain"], stdin=PIPE, stdout=PIPE, stderr=PIPE
+    )
+    output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
+    p.returncode
     decoded = output.decode("utf-8")
 
     if decoded:
@@ -95,7 +98,7 @@ def create_pull(
     # for repo in g.get_user().get_repos():
     #     print(repo.name)
 
-    head = "{}:{}".format(org, branch_name)
+    head = "{org}:{branch_name}"
 
     if isinstance(parent_branch, list):
         parent_branch = parent_branch[0]
@@ -124,7 +127,7 @@ def create_pull(
         first_error = err.data["errors"][0]
         field = first_error.get("field")
         code = first_error.get("code")
-        message = first_error.get("message")
+        message = str(first_error.get("message"))
 
         print(f"Failed to create PR becaues {message}")
         if err.status == 422 and field == "head" and code == "invalid":
@@ -132,7 +135,7 @@ def create_pull(
             sys.exit(1)
         elif err.status == 422 and not message:
             print(f"Looks like you're failing to PR against {head}")
-            print(f"Possibly because {err.message}?")
+            print(f"Possibly because {err}?")
         elif err.status == 422 and message.startswith("A pull request already exists"):
             print("You already have a PR for that branch... exiting")
             sys.exit(1)
@@ -146,43 +149,17 @@ def pr_against_dev():
         sys.exit(1)
 
 
-def open_pr(parent, git_pat, org, repo, jira_client):
+def get_github(pat):
     try:
-        g = Github(git_pat)
+        return Github(pat)
     except Exception as e:
+        LOGGER.exception(e)
         print("Something went wrong, check your PAT")
         sys.exit()
 
-    # Issues with splitting the parent branch?
-    # (Pdb) l
-    # 262  	    # parent_branch = parent_parts[1:]
-    # 263  	    upstream, parent_branch = parent.split("/")
-    # 264
-    # 265  	    breakpoint()
-    # 266
-    # 267  ->	    github_repo = g.get_repo(f"{org}/{repo}")
-    # 268
-    # 269  	    # issues = get_all_issues(jira)
-    # 270  	    # ticket_completer = WordCompleter(
-    # 271  	    #     [f"{str(x)}: {x.fields.summary} (issue.fields.issuetype)" for x in issues]
-    # 272  	    # )
-    # (Pdb) p parent_branch
-    # 'dev'
-    # (Pdb) p upstream
 
-    parent_parts = parent.split("/")
-    upstream = parent_parts[0]
-    parent_branch = parent_parts[1:][0]
-    # upstream, parent_branch = parent.split("/")
-
-    # breakpoint()
-
-    github_repo = g.get_repo(f"{org}/{repo}")
-
+def get_tags(github_repo):
     ignored = ["bots", "release-admins"]
-
-    teams = []
-    raw_teams = []
     members = []
 
     try:
@@ -193,32 +170,33 @@ def open_pr(parent, git_pat, org, repo, jira_client):
         for team in teams:
             for member in team.get_members():
                 members.append(member)
-    except Exception:
-        breakpoint()
+    except Exception as e:
+        LOGGER.exception(e)
         pass
 
-    tags = [x.login for x in members]
-    with open(".github/CODEOWNERS") as codeowners:
-        lines = [line.split(" ") for line in codeowners.read().splitlines()]
+    return [x.login for x in members]
 
-    owner_map = [line for line in lines if len(line) == 2]
-    owners = {_map[1] for _map in owner_map}
 
-    # issues = get_all_issues(jira)
-    # ticket_completer = WordCompleter(
-    #     [f"{str(x)}: {x.fields.summary} (issue.fields.issuetype)" for x in issues]
-    # )
-    # prompt("Choose Ticket: ", completer=ticket_completer)
+# pylint: disable=too-many-locals, too-many-statements
+def open_pr(parent, git_pat, org, repo, jira_client):
+    g = get_github(git_pat)
 
-    # get branch
+    parent_parts = parent.split("/")
+    upstream = parent_parts[0]
+    parent_branch = parent_parts[1:][0]
+    github_repo = g.get_repo(f"{org}/{repo}")
+
+    tags = get_tags(github_repo)
 
     branch_name = run_git_cmd(["branch", "--show-current"]).strip("\n")
 
     print(f"Fetching {branch_name} branch")
 
     try:
-        Branch = github_repo.get_branch(branch=branch_name)
+        branch = github_repo.get_branch(branch=branch_name)
+        print(f"Fetched branch {branch}")
     except Exception as e:
+        LOGGER.exception(e)
         pass
         # LOGGER.error(f"Failed to fetch branch {branch_name}")
         # github.GithubException.GithubException: 404 {"message": "Branch
@@ -231,7 +209,7 @@ def open_pr(parent, git_pat, org, repo, jira_client):
 
     parts = branch_name.split("/")
     if len(parts) == 3:
-        remote, issue_type, description = parts
+        _, issue_type, description = parts
     else:
         issue_type, description = parts
 
@@ -249,13 +227,6 @@ def open_pr(parent, git_pat, org, repo, jira_client):
     if not myissue:
         print("Unable to find ticket for branch")
         sys.exit()
-
-    import pprint
-
-    pp = pprint.PrettyPrinter(indent=4)
-
-    raws = [x for x in myissue.raw["fields"]]
-    things = [myissue.raw["fields"][x] for x in raws]
 
     details = []
     if len(commits_unique_to_this_branch) == 1:
@@ -320,32 +291,33 @@ def chdir_to_repo(repo_name):
     try:
         os.chdir(repo_parent() / repo_name)
     except FileNotFoundError as e:
+        LOGGER.exception(e)
         print(f"{repo_name} is not a valid repository, exiting")
         sys.exit()
 
 
 def fetch_branch_and_parent(repo_name):
     chdir_to_repo(repo_name)
-    p = Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
-    rc = p.returncode
+    with Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE) as p:
+        output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
+        p.returncode
 
-    decoded = output.decode("utf-8")
+        decoded = output.decode("utf-8")
 
-    branch_name, remainder = decoded.replace("## ", "").split("...")
-    parent = remainder.split(" ")[0]
-    return branch_name, parent
+        branch_name, remainder = decoded.replace("## ", "").split("...")
+        parent = remainder.split(" ")[0]
+        return branch_name, parent
 
 
 def run_git_cmd(cmd):
     cmd.insert(0, "git")
 
-    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, err = p.communicate(b"input data that is passed to subprocess' stdin")
-    rc = p.returncode
+    with Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE) as p:
+        output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
+        p.returncode
 
-    p_status = p.wait()
-    return output.decode("utf-8")
+        p.wait()
+        return output.decode("utf-8")
 
 
 @dataclass
@@ -383,5 +355,5 @@ def get_unmerged_commits(parent: str, remote: str) -> List[Commit]:
     return [x for x in all if x]
 
 
-def get_filenames(parent: str, remote: str) -> List[Commit]:
+def get_filenames(parent: str, remote: str) -> List[str]:
     return run_git_cmd(["diff", f"{remote}/{parent}..", "--name-only"]).split("\n")

@@ -1,11 +1,8 @@
 """Configuration functions."""
 import configparser
-import logging
 import os
 import warnings
 from pathlib import Path
-
-_logger = logging.getLogger(__name__)
 
 FILENAME = "jolly_brancher.ini"
 
@@ -23,6 +20,7 @@ CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
 JIRA_SECTION_NAME = "jira"
 GIT_SECTION_NAME = "git"
 CONFIG = None
+DEFAULT_BRANCH_FORMAT = "{issue_type}/{ticket}-{summary}"
 
 
 def repo_parent() -> Path:
@@ -52,7 +50,7 @@ def config_setup():
             for key, input_prompt in KEYS_AND_PROMPTS
         }  # ask for input and set all entries
 
-    with open(CONFIG_FILENAME, "w") as configfile:
+    with open(CONFIG_FILENAME, "w", encoding="utf8") as configfile:
         config.write(configfile)
 
 
@@ -64,8 +62,6 @@ def fetch_config():
 
     default_config = config[JIRA_SECTION_NAME]
     git_config = config[GIT_SECTION_NAME]
-
-    DEFAULT_BRANCH_FORMAT = "{issue_type}/{ticket}-{summary}"
 
     return (
         git_config["repo_root"],
@@ -82,15 +78,7 @@ def read_config():
     global CONFIG
 
     if not CONFIG:
-        CONFIG = (
-            REPO_ROOT,
-            TOKEN,
-            BASE_URL,
-            AUTH_EMAIL,
-            BRANCH_FORMAT,
-            GIT_PAT,
-            FORGE_ROOT,
-        ) = fetch_config()
+        CONFIG = fetch_config()
     return CONFIG
 
 
