@@ -1,8 +1,10 @@
 """Jira stuff."""
 import logging
+import webbrowser
 from enum import Enum
 
 from jira import JIRA
+from jira.exceptions import JIRAError
 
 _logger = logging.getLogger(__name__)
 
@@ -112,7 +114,8 @@ class JiraClient:
     """Wrapper class for external jira library."""
 
     def __init__(self, url, email, token, user_scope=False):
-        self._JIRA = JIRA(url, basic_auth=(email, token))
+        # testing async
+        self._JIRA = JIRA(url, basic_auth=(email, token), options={"async": True})
         self.scope = False
         if user_scope:
             self.scope = USER_SCOPE
@@ -124,7 +127,18 @@ class JiraClient:
         return self._JIRA.issue(ticket)
 
     def transition_issue(self, issue, value):
-        return self._JIRA.transition_issue(issue, transition=value)
+        try:
+            return self._JIRA.transition_issue(issue, transition=value)
+        except JIRAError as e:
+            # File "/.local/lib/python3.9/site-packages/jira/client.py",
+            #            line 2073, in transition_issue
+            # raise JIRAError(f"Invalid transition name. {transition}")
+            # jira.exceptions.JIRAError: JiraError HTTP None
+            # text: Invalid transition name. In Progress
+            _logger.exception(e)
+            print("Failed to change the ticket status automatically")
+            # Open link to ticket status
+            webbrowser.open(self.issue(issue).permalink())
 
     def add_comment(self, myissue, comment):
         self._JIRA.add_comment(myissue, comment)

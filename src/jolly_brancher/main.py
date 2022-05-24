@@ -142,7 +142,7 @@ def main(args):
         IssueStatus.TODO.value,
         IssueStatus.SELECTED_FOR_DEVELOPMENT.value,
     ]:
-        # Move the ticket from opened to closed.
+        # Move the ticket to in progress
         jira_client.transition_issue(ticket, IssueStatus.IN_PROGRESS.value)
 
     try:

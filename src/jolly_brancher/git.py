@@ -98,7 +98,7 @@ def create_pull(
     # for repo in g.get_user().get_repos():
     #     print(repo.name)
 
-    head = "{org}:{branch_name}"
+    head = f"{org}:{branch_name}"
 
     if isinstance(parent_branch, list):
         parent_branch = parent_branch[0]
