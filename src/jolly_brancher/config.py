@@ -24,7 +24,7 @@ DEFAULT_BRANCH_FORMAT = "{issue_type}/{ticket}-{summary}"
 
 
 def repo_parent() -> Path:
-    return Path(CONFIG[0] + "/")
+    return Path(CONFIG[0] + "/")  # type: ignore
 
 
 def config_setup():

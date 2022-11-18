@@ -172,7 +172,6 @@ def get_tags(github_repo):
                 members.append(member)
     except Exception as e:
         LOGGER.exception(e)
-        pass
 
     return [x.login for x in members]
 
@@ -197,7 +196,6 @@ def open_pr(parent, git_pat, org, repo, jira_client):
         print(f"Fetched branch {branch}")
     except Exception as e:
         LOGGER.exception(e)
-        pass
         # LOGGER.error(f"Failed to fetch branch {branch_name}")
         # github.GithubException.GithubException: 404 {"message": "Branch
         # not found", "documentation_url":
@@ -280,15 +278,18 @@ def open_pr(parent, git_pat, org, repo, jira_client):
 
     print(f"Not using, {clean_url}, using {dirty_url}")
 
-    jira_client.add_comment_panel(
-        myissue, "Automated action performed", "\n".join(["(/) " + pr.title, dirty_url])
-    )
-
     webbrowser.open(pr.html_url)
 
 
 def chdir_to_repo(repo_name):
     try:
+        os.chdir(repo_parent() / repo_name)
+    except FileNotFoundError as e:
+        LOGGER.exception(e)
+        print(f"{repo_name} is not a valid repository")
+
+    try:
+        repo_name = repo_name.replace("pasa-v2x/", "")
         os.chdir(repo_parent() / repo_name)
     except FileNotFoundError as e:
         LOGGER.exception(e)

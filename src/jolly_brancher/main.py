@@ -7,19 +7,13 @@ import logging
 import os
 import subprocess
 import sys
-import urllib
 from subprocess import PIPE, Popen
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
 from jolly_brancher.config import forge_root, git_pat, read_config
-from jolly_brancher.git import (
-    FORGE_URL,
-    fetch_branch_and_parent,
-    is_repository_dirty,
-    open_pr,
-)
+from jolly_brancher.git import fetch_branch_and_parent, is_repository_dirty, open_pr
 from jolly_brancher.issues import IssueStatus, IssueType, JiraClient
 from jolly_brancher.logging import setup_logging
 from jolly_brancher.user_input import choose_repo, list_repos, parse_args, query_yes_no
@@ -77,14 +71,12 @@ def main(args):
     except IndexError:
         print("Upable to parse parent... making assumptions")
         parent = "upstream/dev"
-        pass
 
     try:
         upstream, parent_branch = parent.split("/")
     except ValueError:
         upstream, parent_type, branch = parent.split("/")
         parent_branch = "/".join([parent_type, branch])
-        pass
 
     args = parse_args(None, repo_dirs, parent_branch)
     myissue = None
@@ -242,16 +234,10 @@ def main(args):
         .strip(".git\n")
         .strip("git@github.com:")
     )
-    branch_url = "/".join(
-        [FORGE_URL, repo_url, "tree", urllib.parse.quote_plus(branch_name)]
-    )
 
-    print(f"Adding comment with branch {branch_url} name to issue...")
-    jira_client.add_comment_panel(
-        myissue,
-        "Automated action performed",
-        f"(/) [Relevant branch created|{branch_url}]",
-    )
+    # Flake8 did not like that this wasn't used, but I don't want to remove the
+    # logic above, so I'm going to print it...
+    print(f"Got repo url: {repo_url}")
 
 
 def run():

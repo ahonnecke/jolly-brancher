@@ -16,6 +16,7 @@ class IssueStatus(Enum):
     IN_DEV = "In Dev"
     IN_PROGRESS = "In Progress"
     SELECTED_FOR_DEVELOPMENT = "Selected for Development"
+    TESTING = "Testing"
 
     @staticmethod
     def selectable_statuses():
@@ -23,6 +24,7 @@ class IssueStatus(Enum):
             IssueStatus.IN_DEV,
             IssueStatus.IN_PROGRESS,
             IssueStatus.TODO,
+            IssueStatus.TESTING,
             IssueStatus.SELECTED_FOR_DEVELOPMENT,
         ]
 
