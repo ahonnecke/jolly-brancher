@@ -173,7 +173,7 @@ def main(args):
         branch_name = f"{branch_name}.{prepend}"
 
     # strip last word (likely partial)
-    branch_name = "-".join(branch_name.split("-")[0:-1])
+    branch_name = "-".join(branch_name.split("-")[0:-1]).replace(" ", "-")
 
     print(f"Creating branch {branch_name}")
 
