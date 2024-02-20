@@ -1,4 +1,5 @@
 """Configuration functions."""
+
 import configparser
 import os
 import warnings

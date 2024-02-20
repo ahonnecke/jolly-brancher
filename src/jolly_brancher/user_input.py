@@ -1,4 +1,5 @@
 """User input interface functions."""
+
 import argparse
 import logging
 import os
