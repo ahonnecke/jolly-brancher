@@ -1,6 +1,7 @@
 """
 Main entrypoint for the jolly_brancher library.
 """
+
 # pylint: disable=too-many-arguments,invalid-name,too-many-locals
 
 import logging
