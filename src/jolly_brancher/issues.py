@@ -13,19 +13,15 @@ USER_SCOPE = "USER"
 
 class IssueStatus(Enum):
     TODO = "To Do"
-    IN_DEV = "In Dev"
     IN_PROGRESS = "In Progress"
-    SELECTED_FOR_DEVELOPMENT = "Selected for Development"
-    TESTING = "Testing"
+    BACKLOG = "Backlog"
 
     @staticmethod
     def selectable_statuses():
         return [
-            IssueStatus.IN_DEV,
+            IssueStatus.BACKLOG,
             IssueStatus.IN_PROGRESS,
             IssueStatus.TODO,
-            IssueStatus.TESTING,
-            IssueStatus.SELECTED_FOR_DEVELOPMENT,
         ]
 
 
@@ -35,7 +31,10 @@ class IssueType(Enum):
     ENHANCEMENT = "ENHANCEMENT"
     BUG = "BUG"
     TASK = "TASK"
-    SUBTASK = "SUB-TASK"
+    SUB_TASK = "SUB-TASK"
+    SUBTASK = "SUBTASK"
+    TECHDEBT = "TECH-DEBT"
+    INCIDENT = "INCIDENT"
 
     @classmethod
     def from_branch_name(cls, branch_name):
@@ -48,7 +47,7 @@ class IssueType(Enum):
         issue_type_string, ticket_name = cls.parse_branch_name(branch_name)
 
         try:
-            return IssueType(issue_type_string)
+            return IssueType(issue_type_string.upper())
         except AttributeError as e:
             _logger.exception(e)
             return False

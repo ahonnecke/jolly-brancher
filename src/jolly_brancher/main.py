@@ -1,6 +1,7 @@
 """
 Main entrypoint for the jolly_brancher library.
 """
+
 # pylint: disable=too-many-arguments,invalid-name,too-many-locals
 
 import logging
@@ -12,10 +13,11 @@ from subprocess import PIPE, Popen
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from jolly_brancher.config import forge_root, git_pat, read_config
+from jolly_brancher.config import forge_root, git_pat, read_config, github_org
 from jolly_brancher.git import fetch_branch_and_parent, is_repository_dirty, open_pr
+
 from jolly_brancher.issues import IssueStatus, IssueType, JiraClient
-from jolly_brancher.logging import setup_logging
+from jolly_brancher.log import setup_logging
 from jolly_brancher.user_input import choose_repo, list_repos, parse_args, query_yes_no
 
 __author__ = "Ashton Von Honnecke"
@@ -33,6 +35,7 @@ def main(args):
     """
     Main entrypoint for the jolly_brancher library.
     """
+
     # pylint: disable=too-many-branches,too-many-statements
 
     (
@@ -104,8 +107,7 @@ def main(args):
                 )
 
             if do_open_pr:
-                org = forge_root().split("/")[-1]
-                open_pr(parent, git_pat(), org, repo, jira_client)
+                open_pr(parent, git_pat(), github_org(), repo, jira_client)
                 sys.exit(0)
     else:
         print("branch name is non-conforming")
@@ -132,7 +134,6 @@ def main(args):
 
     if str(issue.fields.status) in [
         IssueStatus.TODO.value,
-        IssueStatus.SELECTED_FOR_DEVELOPMENT.value,
     ]:
         # Move the ticket to in progress
         jira_client.transition_issue(ticket, IssueStatus.IN_PROGRESS.value)
@@ -249,5 +250,4 @@ def run():
 
 
 if __name__ == "__main__":
-    print("fuck yo")
     run()

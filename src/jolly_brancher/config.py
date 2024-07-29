@@ -1,4 +1,5 @@
 """Configuration functions."""
+
 import configparser
 import os
 import warnings
@@ -84,6 +85,10 @@ def read_config():
 
 def forge_root():
     return CONFIG[6]
+
+
+def github_org():
+    return forge_root().strip("/").split("/")[-1]
 
 
 def git_pat():
