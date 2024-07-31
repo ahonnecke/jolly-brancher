@@ -12,7 +12,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
 from jolly_brancher.config import repo_parent
-from jolly_brancher.logging import setup_logging
+from jolly_brancher.log import setup_logging
 from jolly_brancher.user_input import query_yes_no
 
 setup_logging(logging.DEBUG)
@@ -43,18 +43,8 @@ def body(
 
     return (
         f"# {short_desc} against {ticket}\n"
-        f" ? | _\n"
-        f"------------ | -------------\n"
-        f"What type of change? | {what_type}\n"
-        f"What is it accomplishing? | {long_desc}\n"
         f"JIRA ticket | [{ticket}](https://cirrusv2x.atlassian.net/browse/{ticket})\n"
         f"-----------------------------------------------------------------\n"
-        f"## Goal\n"
-        f"> {long_desc}.\n"
-        f"----------------------------------------------------------------\n"
-        f"## What\n"
-        f"> {short_desc}.\n"
-        f"----------------------------------------------------------------\n"
         f"## Details\n"
         f"> {detail}\n"
         f"----------------------------------------------------------------\n"
@@ -183,7 +173,8 @@ def open_pr(parent, git_pat, org, repo, jira_client):
     parent_parts = parent.split("/")
     upstream = parent_parts[0]
     parent_branch = parent_parts[1:][0]
-    github_repo = g.get_repo(f"{org}/{repo}")
+    full_name_or_id = f"{org}/{repo}"
+    github_repo = g.get_repo(full_name_or_id=full_name_or_id)
 
     tags = get_tags(github_repo)
 
