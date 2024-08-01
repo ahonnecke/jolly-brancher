@@ -12,6 +12,10 @@ pygithub = "*"
 [dev-packages]
 ruff = "*"
 pre-commit = "*"
+pytest = "*"
+pytest-cov = "*"
+black = "*"
+tox = "*"
 
 [requires]
 python_version = "3.11"
