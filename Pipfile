@@ -11,6 +11,7 @@ pygithub = "*"
 
 [dev-packages]
 ruff = "*"
+pre-commit = "*"
 
 [requires]
 python_version = "3.11"
