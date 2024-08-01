@@ -86,3 +86,8 @@ Future Features
   - Include other interesting statistics
 * Automatically tag the owner of the files that were changed
 * Pull the acceptance criteria from the ticket and format it into a list of checkboxes so the developer can indicate which are met by the current revision
+
+Deploy
+===============
+  * Manually bump version in setup.
+  * make deploy
