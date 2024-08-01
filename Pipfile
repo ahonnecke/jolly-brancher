@@ -16,6 +16,7 @@ pytest = "*"
 pytest-cov = "*"
 black = "*"
 tox = "*"
+setuptools = "*"
 
 [requires]
 python_version = "3.11"
