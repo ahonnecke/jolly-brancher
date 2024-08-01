@@ -1,4 +1,5 @@
 """Jira stuff."""
+
 import logging
 import webbrowser
 from enum import Enum

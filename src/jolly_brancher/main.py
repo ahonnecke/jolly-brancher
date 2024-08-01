@@ -13,9 +13,8 @@ from subprocess import PIPE, Popen
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from jolly_brancher.config import forge_root, git_pat, read_config, github_org
+from jolly_brancher.config import forge_root, git_pat, github_org, read_config
 from jolly_brancher.git import fetch_branch_and_parent, is_repository_dirty, open_pr
-
 from jolly_brancher.issues import IssueStatus, IssueType, JiraClient
 from jolly_brancher.log import setup_logging
 from jolly_brancher.user_input import choose_repo, list_repos, parse_args, query_yes_no
