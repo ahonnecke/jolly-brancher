@@ -33,9 +33,12 @@ repos:
     rev: v1.11.1
     hooks:
       - id: mypy
-        additional_dependencies:
-          [types-python-dateutil, types-requests, types-termcolor]
+        additional_dependencies: [types-python-dateutil, types-requests, types-termcolor]
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.17.0
     hooks:
       - id: pyupgrade
+  - repo: https://github.com/google/yamlfmt
+    rev: v0.12.1
+    hooks:
+      - id: yamlfmt
