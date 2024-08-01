@@ -52,9 +52,9 @@ jobs:
           key: pre-commit|${{ env.pythonLocation}}|${{hashFiles('.pre-commit-config.yaml') }}
       - name: Build Project and Publish
         run: |
-          python -m pip install --upgrade pip setuptools tox
-          python -m tox -e clean,build
-          python -m tox -e py311
+          pipenv run python -m pip install --upgrade pip setuptools tox
+          pipenv run python -m tox -e clean,build
+          pipenv run python -m tox -e py311
       - uses: actions/upload-artifact@v3
         name: python-package-distributions
         with:
