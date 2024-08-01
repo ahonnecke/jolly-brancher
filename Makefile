@@ -7,7 +7,7 @@
 build:
 	tox -e build
 
-publish.local:
+publish.test:
 	tox -e publish
 
 publish.pypi:
