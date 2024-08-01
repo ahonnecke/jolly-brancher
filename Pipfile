@@ -8,6 +8,7 @@ jira = "*"
 prompt-toolkit = "*"
 argparse = "*"
 pygithub = "*"
+twine = "*"
 
 [dev-packages]
 ruff = "*"

@@ -11,7 +11,8 @@ from setuptools import setup
 
 if __name__ == "__main__":
     try:
-        setup(use_scm_version={"version_scheme": "no-guess-dev"})
+        # Must manually bump version here now.
+        setup(version="1.0.4")
     except:  # noqa
         print(
             "\n\nAn error occurred while building the project, "
