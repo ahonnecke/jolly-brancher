@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7]
+        python-version: [3.11]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,7 +36,7 @@ jobs:
     needs: [build]
     strategy:
       matrix:
-        python-version: [3.9]
+        python-version: [3.11]
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
@@ -54,6 +54,7 @@ jobs:
           python -m tox -e clean,build
           python -m tox -e py39
       - uses: actions/upload-artifact@v3
+        name: python-package-distributions
         with:
           path: ./dist
   pypi-publish:
@@ -74,7 +75,6 @@ jobs:
           packages_dir: artifact/
           verbose: true
           print-hash: true
-
 # - name: Build Project and Publish
 #   env:
 #     TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
