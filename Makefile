@@ -17,5 +17,5 @@ publish.pypi:
 	tox -e publish -- --repository pypi
 
 deploy:
-	docs build  publish.pypi
+	make docs && make build && make publish.pypi
 # end
