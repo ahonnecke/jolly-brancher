@@ -30,6 +30,17 @@ _logger = logging.getLogger(__name__)
 SUMMARY_MAX_LENGTH = 80
 
 
+def get_upstream_repo():
+    with Popen(
+        ["git", "config", "--get", "remote.upstream.url"],
+        stdin=PIPE,
+        stdout=PIPE,
+        stderr=PIPE,
+    ) as p:
+        output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
+        return output.decode("utf-8").split("\n")
+
+
 def main(args):
     """
     Main entrypoint for the jolly_brancher library.
@@ -106,6 +117,8 @@ def main(args):
                 )
 
             if do_open_pr:
+                repo = get_upstream_repo()[0].split("/")[-1].replace(".git", "")
+
                 open_pr(parent, git_pat(), github_org(), repo, jira_client)
                 sys.exit(0)
     else:

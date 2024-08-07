@@ -174,6 +174,7 @@ def open_pr(parent, git_pat, org, repo, jira_client):
     upstream = parent_parts[0]
     parent_branch = parent_parts[1:][0]
     full_name_or_id = f"{org}/{repo}"
+
     github_repo = g.get_repo(full_name_or_id=full_name_or_id)
 
     tags = get_tags(github_repo)
