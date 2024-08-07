@@ -10,6 +10,9 @@ build:
 docs:
 	tox -e docs
 
+clean:
+	rm ./dist/*
+
 publish.test:
 	tox -e publish
 
@@ -17,5 +20,5 @@ publish.pypi:
 	tox -e publish -- --repository pypi
 
 deploy:
-	make docs && make build && make publish.pypi
+	make clean && make docs && make build && make publish.pypi
 # end
