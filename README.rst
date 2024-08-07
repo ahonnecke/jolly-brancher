@@ -81,7 +81,7 @@ Future Features
 ===============
 * Extract the contents of the comments in the branch and construct a description of the changes in the branch
 * Perform in place analysis of the branch and add information to the PR
-  - Were any tests added?
+  - Were any tests added?s
   - Run unit tests / linter (fetch from github actions)
   - Include other interesting statistics
 * Automatically tag the owner of the files that were changed
@@ -89,5 +89,5 @@ Future Features
 
 Deploy
 ===============
-  * Manually bump version in setup.
+  * Manually bump version in setup.py
   * make deploy
