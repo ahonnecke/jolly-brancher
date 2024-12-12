@@ -2,11 +2,7 @@
 
 import argparse
 import logging
-import os
 import sys
-
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
 
 from jolly_brancher import __version__
 
@@ -43,34 +39,6 @@ def query_yes_no(question, default="yes"):
         sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
 
 
-def list_repos(repo_root):
-    return os.listdir(repo_root)
-
-
-def choose_repo(repo_root: str, yes_to_all: bool):
-    current_dir = os.getcwd()
-
-    leaf = current_dir.split("/")[-1]
-    repo_dirs = list_repos(repo_root)
-
-    if leaf in repo_dirs:
-        if yes_to_all:
-            print(f"Using {leaf}...")
-            return leaf
-
-        if query_yes_no(f"Use {leaf}?"):
-            return leaf
-
-    repo_completer = WordCompleter(repo_dirs)
-    repo = prompt("Choose repository: ", completer=repo_completer)
-
-    while repo and repo not in repo_dirs:
-        print(f"{repo} is not a valid repository")
-        repo = prompt("Choose repository: ", completer=repo_completer)
-
-    return repo
-
-
 def create_parser():
     """Create and return the argument parser."""
     parser = argparse.ArgumentParser(
@@ -81,14 +49,15 @@ def create_parser():
     # Required arguments
     parser.add_argument(
         "action",
-        choices=["list", "start", "end"],
-        help="Action to perform: list (show tickets), start (new branch), or end (create PR)",
+        choices=["list", "start", "end", "open-tickets"],
+        help="Action to perform: list (show tickets), start (new branch), end (create PR), or open-tickets (show active tickets)",
     )
 
     parser.add_argument(
         "--repo",
-        required=True,
-        help="Absolute path to the git repository (e.g., ~/src/myproject)",
+        help="Path to the git repository (default: current directory)",
+        default=".",
+        type=str,
     )
 
     # Optional arguments

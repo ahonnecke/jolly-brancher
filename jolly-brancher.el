@@ -23,10 +23,10 @@
 ;;   (require 'jolly-brancher)
 ;;
 ;; Then you can use:
-;;   C-c o j - Open jolly-brancher menu
-;;   C-c o l - List tickets
-;;   C-c o s - Start a branch
-;;   C-c o e - End branch and create PR
+;;   C-c j j - Open jolly-brancher menu
+;;   C-c j l - List tickets
+;;   C-c j s - Start a branch
+;;   C-c j e - End branch and create PR
 
 ;;; Code:
 
@@ -38,10 +38,13 @@
   :group 'tools
   :prefix "jolly-brancher-")
 
-(defcustom jolly-brancher-command "jolly-brancher"
+(defcustom jolly-brancher-command "/home/ahonnecke/.pyenv/shims/jolly-brancher"
   "Command to run jolly-brancher."
   :type 'string
   :group 'jolly-brancher)
+
+(defvar-local jolly-brancher--current-repo nil
+  "The current repository path for jolly-brancher commands.")
 
 (defvar jolly-brancher--ticket-history nil
   "History of ticket IDs used.")
@@ -53,60 +56,94 @@
       (error "Not in a project")))
 
 (defun jolly-brancher--parse-ticket-list (output)
-  "Parse OUTPUT from jolly-brancher list command into alist."
-  (mapcar (lambda (line)
-            (when (string-match "\\([^|]+\\)|\\([^|]+\\)|\\([^|]+\\)|\\([^|]+\\)" line)
-              (list (match-string 1 line)
-                    :summary (match-string 2 line)
-                    :type (match-string 3 line)
-                    :status (match-string 4 line))))
-          (split-string output "\n" t)))
+  "Parse OUTPUT from jolly-brancher list command into a list of tickets."
+  (let ((lines (split-string output "\n" t)))
+    (cl-remove-if #'null
+                  (mapcar (lambda (line)
+                            (when (string-match "^\\([A-Z]+-[0-9]+\\)\\s-+\\(.*\\)$" line)
+                              (list :id (match-string 1 line)
+                                    :summary (match-string 2 line))))
+                          lines))))
 
-(defun jolly-brancher--run (action &rest args)
-  "Run jolly-brancher with ACTION and ARGS."
-  (let* ((default-directory (jolly-brancher--get-repo-root))
-         (buffer (get-buffer-create "*jolly-brancher*"))
-         (command (append (list jolly-brancher-command action "--repo" default-directory)
-                        args)))
-    (with-current-buffer buffer
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (message "Running: %s" (string-join command " "))
-        (let ((exit-code (apply #'call-process
-                               (car command)
-                               nil (current-buffer) t
-                               (cdr command))))
-          (if (zerop exit-code)
-              (buffer-string)
-            (display-buffer buffer)
-            (error "Jolly-brancher failed with exit code %d" exit-code)))))))
+(defun jolly-brancher--format-ticket (ticket)
+  "Format a TICKET for display."
+  (format "%-12s  %-50s"
+          (propertize (plist-get ticket :id)
+                      'face 'font-lock-keyword-face)
+          (plist-get ticket :summary)))
 
-;;;###autoload
+(defun jolly-brancher--get-ticket-at-point ()
+  "Get the ticket ID at point."
+  (save-excursion
+    (beginning-of-line)
+    (when (looking-at "\\([A-Z]+-[0-9]+\\)")
+      (match-string-no-properties 1))))
+
+(defun jolly-brancher--run-command (cmd)
+  "Run CMD and return its output, handling errors appropriately."
+  (with-temp-buffer
+    (message "Running command: %s" cmd)
+    (let ((exit-code (call-process-shell-command cmd nil t)))
+      (let ((output (buffer-string)))
+        (if (= exit-code 0)
+            output
+          (message "Command failed with output: %s" output)
+          nil)))))
+
 (defun jolly-brancher-list-tickets ()
-  "List all in-progress tickets."
+  "Display tickets in a new buffer with actions."
   (interactive)
-  (let* ((output (jolly-brancher--run "list"))
-         (tickets (jolly-brancher--parse-ticket-list output))
-         (buf (get-buffer-create "*Jolly Brancher Tickets*")))
-    (with-current-buffer buf
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert "Jolly Brancher Tickets\n\n")
-        (insert (format "%-12s  %-50s  %-10s  %s\n"
-                       "Ticket" "Summary" "Type" "Status"))
-        (insert (make-string 80 ?-) "\n")
-        (dolist (ticket tickets)
-          (when ticket  ; Skip nil entries
-            (insert (format "%-12s  %-50s  %-10s  %s\n"
-                           (car ticket)
-                           (truncate-string-to-width
-                            (or (plist-get (cdr ticket) :summary) "")
-                            50 nil nil "...")
-                           (plist-get (cdr ticket) :type)
-                           (plist-get (cdr ticket) :status)))))
-        (goto-char (point-min))
-        (special-mode)))
-    (display-buffer buf)))
+  (let* ((default-directory (jolly-brancher--get-repo-root))
+         (command (format "%s --repo %s list"
+                         jolly-brancher-command default-directory))
+         (output (jolly-brancher--run-command command)))
+    (when output
+      (setq-local jolly-brancher--current-repo default-directory)
+      (let* ((tickets (jolly-brancher--parse-ticket-list output))
+             (buf (get-buffer-create "*Jolly Brancher Tickets*")))
+        (with-current-buffer buf
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (jolly-brancher-tickets-mode)
+            (setq-local jolly-brancher--current-repo default-directory)
+            (insert "Jolly Brancher Tickets\n\n")
+            (insert "Press RET or click on a ticket to show actions.\n\n")
+            (if tickets
+                (dolist (ticket tickets)
+                  (when ticket
+                    (insert (jolly-brancher--format-ticket ticket) "\n")))
+              (insert "No tickets found.\n")))
+          (goto-char (point-min)))
+        (switch-to-buffer buf)))))
+
+(defun jolly-brancher-start-ticket-branch ()
+  "Start a branch for the ticket at point."
+  (interactive)
+  (let ((ticket-id (jolly-brancher--get-ticket-at-point))
+        (repo-path (buffer-local-value 'jolly-brancher--current-repo (current-buffer))))
+    (if (and ticket-id repo-path)
+        (let* ((command (format "%s --repo %s start --ticket %s"
+                              jolly-brancher-command
+                              repo-path
+                              ticket-id))
+               (output (jolly-brancher--run-command command)))
+          (if output
+              (message "Started branch for ticket %s" ticket-id)
+            (message "Failed to start branch. Check the Messages buffer for details.")))
+      (message "No ticket at point or repository not set"))))
+
+(defun jolly-brancher-view-ticket ()
+  "Open the current ticket in browser."
+  (interactive)
+  (when-let ((ticket-id (jolly-brancher--get-ticket-at-point)))
+    (browse-url (format "https://cirrusv2x.atlassian.net/browse/%s" ticket-id))))
+
+(defun jolly-brancher-copy-ticket-id ()
+  "Copy the current ticket ID to kill ring."
+  (interactive)
+  (when-let ((ticket-id (jolly-brancher--get-ticket-at-point)))
+    (kill-new ticket-id)
+    (message "Copied %s to clipboard" ticket-id)))
 
 ;;;###autoload
 (defun jolly-brancher-start-branch (ticket)
@@ -139,25 +176,80 @@
    ("-p" "Parent branch" "--parent=")]
   ["Actions"
    ("l" "List tickets" jolly-brancher-list-tickets)
+   ("o" "List open tickets" jolly-brancher-list-open-tickets)
    ("s" "Start branch" jolly-brancher-start-branch)
    ("e" "End branch (create PR)" jolly-brancher-end-branch)])
+
+;;;###autoload
+(defun jolly-brancher-list-open-tickets ()
+  "Display currently open tickets in a new buffer with actions."
+  (interactive)
+  (let* ((default-directory (jolly-brancher--get-repo-root))
+         (command (format "%s --repo %s open-tickets"
+                         jolly-brancher-command default-directory))
+         (output (jolly-brancher--run-command command)))
+    (if output
+        (let* ((tickets (jolly-brancher--parse-ticket-list output))
+               (buf (get-buffer-create "*Jolly Brancher Open Tickets*")))
+          (with-current-buffer buf
+            (let ((inhibit-read-only t))
+              (erase-buffer)
+              (jolly-brancher-tickets-mode)
+              (insert "Open Jolly Brancher Tickets\n\n")
+              (insert "Press RET or click on a ticket to show actions.\n\n")
+              (if tickets
+                  (dolist (ticket tickets)
+                    (when ticket
+                      (insert (jolly-brancher--format-ticket ticket) "\n")))
+                (insert "No open tickets found.\n")))
+            (goto-char (point-min)))
+          (switch-to-buffer buf))
+      (message "Failed to get open tickets. Check the Messages buffer for details."))))
 
 ;;;###autoload
 (define-minor-mode jolly-brancher-mode
   "Minor mode for jolly-brancher key bindings."
   :global t
   :keymap (let ((map (make-sparse-keymap)))
-           (define-key map (kbd "C-c o j") 'jolly-brancher)
-           (define-key map (kbd "C-c o l") 'jolly-brancher-list-tickets)
-           (define-key map (kbd "C-c o s") 'jolly-brancher-start-branch)
-           (define-key map (kbd "C-c o e") 'jolly-brancher-end-branch)
-           map))
+            (define-key map (kbd "C-c j j") 'jolly-brancher)
+            (define-key map (kbd "C-c j l") 'jolly-brancher-list-tickets)
+            (define-key map (kbd "C-c j o") 'jolly-brancher-list-open-tickets)
+            (define-key map (kbd "C-c j s") 'jolly-brancher-start-branch)
+            (define-key map (kbd "C-c j e") 'jolly-brancher-end-branch)
+            map))
 
 ;;;###autoload
 (defun jolly-brancher-setup ()
   "Setup jolly-brancher."
   (interactive)
   (jolly-brancher-mode 1))
+
+(define-derived-mode jolly-brancher-tickets-mode special-mode "Jolly-Tickets"
+  "Major mode for Jolly Brancher ticket listing."
+  (setq buffer-read-only t)
+  (setq-local line-move-visual t)
+  ;; Custom keymap for the tickets buffer
+  (let ((map jolly-brancher-tickets-mode-map))
+    (define-key map (kbd "RET") #'jolly-brancher-ticket-action-menu)
+    (define-key map (kbd "s") #'jolly-brancher-start-ticket-branch)
+    (define-key map (kbd "q") #'quit-window)
+    (define-key map [mouse-1] #'jolly-brancher-ticket-action-menu)))
+
+(transient-define-prefix jolly-brancher-ticket-action-menu ()
+  "Actions for the current ticket."
+  [:description
+   (lambda ()
+     (let ((ticket-id (jolly-brancher--get-ticket-at-point)))
+       (format "Actions for ticket %s" (or ticket-id "unknown"))))
+
+   ["Actions"
+    ("s" "Start branch for this ticket" jolly-brancher-start-ticket-branch)
+    ("v" "View in browser" jolly-brancher-view-ticket)
+    ("c" "Copy ticket ID" jolly-brancher-copy-ticket-id)]]
+  (interactive)
+  (if (jolly-brancher--get-ticket-at-point)
+      (transient-setup 'jolly-brancher-ticket-action-menu)
+    (message "No ticket at point")))
 
 (provide 'jolly-brancher)
 

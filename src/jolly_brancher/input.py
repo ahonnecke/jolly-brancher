@@ -1,8 +1,4 @@
-import os
 import sys
-
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
 
 
 def query_yes_no(question, default="yes"):
@@ -35,16 +31,3 @@ def query_yes_no(question, default="yes"):
             return valid[choice]
 
         sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
-
-
-def choose_repo(repo_root):
-    repo = None
-    repo_dirs = os.listdir(repo_root)
-    repo_completer = WordCompleter(repo_dirs)
-    repo = prompt("Choose repository: ", completer=repo_completer)
-
-    while repo and repo not in repo_dirs:
-        print(f"{repo} is not a valid repository")
-        repo = prompt("Choose repository: ", completer=repo_completer)
-
-    return repo

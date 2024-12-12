@@ -1,22 +1,15 @@
+"""Git interface functions."""
+
 import logging
-import os
+import subprocess
 import sys
-import urllib
-import webbrowser
 from dataclasses import dataclass
-from subprocess import PIPE, Popen
 from typing import List
 
-from github import Github, GithubException, PullRequest
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
+from github import Github, GithubException
+from github.PullRequest import PullRequest
 
-from jolly_brancher.config import repo_parent
-from jolly_brancher.log import setup_logging
-from jolly_brancher.user_input import query_yes_no
-
-setup_logging(logging.DEBUG)
-LOGGER = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 FORGE_URL = "https://github.com/"
 
@@ -59,11 +52,11 @@ def body(
 
 def is_repository_dirty(repo_path):
     """Check if repository is dirty."""
-    with Popen(
+    with subprocess.Popen(
         ["git", "status", "--porcelain"],
-        stdin=PIPE,
-        stdout=PIPE,
-        stderr=PIPE,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         cwd=repo_path,
     ) as p:
         output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
@@ -72,8 +65,7 @@ def is_repository_dirty(repo_path):
 
 def create_pull(
     org, branch_name, parent_branch, short_desc, pr_body, github_repo
-) -> PullRequest.PullRequest:
-
+) -> PullRequest:
     # First create a Github instance:
 
     # using an access token
@@ -140,7 +132,7 @@ def get_github(pat):
     try:
         return Github(pat)
     except Exception as e:
-        LOGGER.exception(e)
+        _logger.exception(e)
         print("Something went wrong, check your PAT")
         sys.exit()
 
@@ -158,7 +150,7 @@ def get_tags(github_repo):
             for member in team.get_members():
                 members.append(member)
     except Exception as e:
-        LOGGER.exception(e)
+        _logger.exception(e)
 
     return [x.login for x in members]
 
@@ -181,7 +173,7 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
         branch = github_repo.get_branch(branch=branch_name)
         print(f"Fetched branch {branch}")
     except Exception as e:
-        LOGGER.exception(e)
+        _logger.exception(e)
         # LOGGER.error(f"Failed to fetch branch {branch_name}")
         # github.GithubException.GithubException: 404 {"message": "Branch
         # not found", "documentation_url":
@@ -269,11 +261,11 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
 
 def fetch_branch_and_parent(repo_path):
     """Get current branch name and parent."""
-    with Popen(
+    with subprocess.Popen(
         ["git", "status", "-sb"],
-        stdin=PIPE,
-        stdout=PIPE,
-        stderr=PIPE,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         cwd=repo_path,
     ) as p:
         output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
@@ -290,7 +282,13 @@ def fetch_branch_and_parent(repo_path):
 def run_git_cmd(cmd, repo_path):
     cmd.insert(0, "git")
 
-    with Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=repo_path) as p:
+    with subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=repo_path,
+    ) as p:
         output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
         p.returncode
 
