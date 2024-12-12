@@ -10,6 +10,9 @@ from jira.exceptions import JIRAError
 _logger = logging.getLogger(__name__)
 
 USER_SCOPE = "USER"
+ALL_SCOPE = "ALL"
+
+USER_SCOPE = "USER"
 
 
 class IssueStatus(Enum):
@@ -37,6 +40,7 @@ class IssueType(Enum):
     TECHDEBT = "TECH-DEBT"
     INCIDENT = "INCIDENT"
     FEATURE = "FEATURE"
+    SPIKE = "SPIKE"
 
     @classmethod
     def from_branch_name(cls, branch_name):
@@ -113,6 +117,15 @@ def get_all_issues(jira_client, project_name=None, scope=None):
     return issues
 
 
+def get_issue(jira, issue_key):
+    """Get a single issue by key."""
+    try:
+        return jira.issue(issue_key)
+    except Exception as e:
+        _logger.error("Failed to get issue %s: %s", issue_key, e)
+        return None
+
+
 class JiraClient:
     """Wrapper class for external jira library."""
 
@@ -122,6 +135,10 @@ class JiraClient:
         self.scope = False
         if user_scope:
             self.scope = USER_SCOPE
+
+    def get_issue(self, issue_key):
+        """Get a single issue by key."""
+        return get_issue(self._JIRA, issue_key)
 
     def get_all_issues(self, project_name=None):
         return get_all_issues(self._JIRA, project_name=project_name, scope=self.scope)

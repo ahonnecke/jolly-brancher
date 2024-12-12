@@ -3,6 +3,7 @@
 import logging
 import subprocess
 import sys
+import re
 from dataclasses import dataclass
 from typing import List
 
@@ -335,3 +336,156 @@ def get_filenames(parent: str, remote: str, repo_path: str) -> List[str]:
     return run_git_cmd(
         ["diff", f"{remote}/{parent}..", "--name-only"], repo_path
     ).split("\n")
+
+
+def get_default_remote(repo_path):
+    """Get the default remote for the repository."""
+    try:
+        # First try to get the upstream remote of the current branch
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            check=True,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            # Output will be like "origin/main", split to get remote
+            return result.stdout.strip().split('/')[0]
+    except subprocess.CalledProcessError:
+        pass
+
+    try:
+        # If no upstream, try to get the first remote
+        result = subprocess.run(
+            ["git", "remote"],
+            check=True,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            # Return first remote in the list
+            return result.stdout.strip().split('\n')[0]
+    except subprocess.CalledProcessError:
+        pass
+
+    return None
+
+
+def get_default_branch(repo_path):
+    """Get the default branch for the repository."""
+    try:
+        # Try to get the symbolic ref for HEAD
+        result = subprocess.run(
+            ["git", "symbolic-ref", "refs/remotes/upstream/HEAD"],
+            check=True,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            # Output will be like "refs/remotes/upstream/main"
+            return result.stdout.strip().split('/')[-1]
+    except subprocess.CalledProcessError:
+        pass
+
+    try:
+        # If no upstream/HEAD, try origin/HEAD
+        result = subprocess.run(
+            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+            check=True,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            # Output will be like "refs/remotes/origin/main"
+            return result.stdout.strip().split('/')[-1]
+    except subprocess.CalledProcessError:
+        pass
+
+    try:
+        # If no remote HEAD, try local HEAD
+        result = subprocess.run(
+            ["git", "symbolic-ref", "--short", "HEAD"],
+            check=True,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        pass
+
+    # If all else fails, assume 'main'
+    return 'main'
+
+
+def get_upstream_repo(repo_path):
+    """Get the upstream repository URL."""
+    try:
+        # First try to get the upstream remote URL
+        result = subprocess.run(
+            ["git", "remote", "get-url", "upstream"],
+            check=True,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            return [result.stdout.strip()]
+    except subprocess.CalledProcessError:
+        pass
+
+    try:
+        # If no upstream, try origin
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            check=True,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            return [result.stdout.strip()]
+    except subprocess.CalledProcessError:
+        pass
+
+    # If no remotes found, return empty list
+    return []
+
+
+def clean_summary(summary):
+    """Clean up a summary string for use in branch names."""
+    # Convert to lowercase
+    summary = summary.lower()
+
+    # Replace special characters (except forward slashes) with dashes
+    summary = re.sub(r'[^a-z0-9/-]+', '-', summary)
+
+    # Clean up multiple dashes
+    summary = re.sub(r'-+', '-', summary)
+
+    # Remove leading/trailing dashes
+    return summary.strip('-')
+
+
+def create_branch_name(issue):
+    """Create a branch name from a Jira issue."""
+    # Get the issue type
+    issue_type = issue.fields.issuetype.name.upper()
+    if issue_type == "STORY":
+        branch_name = "FEATURE"
+    elif issue_type == "BUG":
+        branch_name = "FIX"
+    else:
+        branch_name = issue_type
+
+    # Get the issue key and clean the summary
+    issue_key = issue.key
+    summary = clean_summary(issue.fields.summary)
+
+    # Combine with forward slash after type
+    return f"{branch_name}/{issue_key}-{summary}"
