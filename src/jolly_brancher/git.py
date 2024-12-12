@@ -57,20 +57,17 @@ def body(
     )
 
 
-def is_repository_dirty(repo_root, repo_name):
-    os.chdir(repo_root + "/" + repo_name)
-
-    p = Popen(  # pylint: disable=consider-using-with
-        ["git", "status", "--porcelain"], stdin=PIPE, stdout=PIPE, stderr=PIPE
-    )
-    output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
-    p.returncode
-    decoded = output.decode("utf-8")
-
-    if decoded:
-        print("Found local changes:")
-        print(decoded)
-    return decoded
+def is_repository_dirty(repo_path):
+    """Check if repository is dirty."""
+    with Popen(
+        ["git", "status", "--porcelain"],
+        stdin=PIPE,
+        stdout=PIPE,
+        stderr=PIPE,
+        cwd=repo_path,
+    ) as p:
+        output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
+        return bool(output.strip())
 
 
 def create_pull(
@@ -167,19 +164,16 @@ def get_tags(github_repo):
 
 
 # pylint: disable=too-many-locals, too-many-statements
-def open_pr(parent, git_pat, org, repo, jira_client):
+def open_pr(repo_path, git_pat, org, repo, jira_client):
     g = get_github(git_pat)
 
-    parent_parts = parent.split("/")
-    upstream = parent_parts[0]
-    parent_branch = parent_parts[1:][0]
     full_name_or_id = f"{org}/{repo}"
 
     github_repo = g.get_repo(full_name_or_id=full_name_or_id)
 
     tags = get_tags(github_repo)
 
-    branch_name = run_git_cmd(["branch", "--show-current"]).strip("\n")
+    branch_name, parent = fetch_branch_and_parent(repo_path)
 
     print(f"Fetching {branch_name} branch")
 
@@ -193,8 +187,8 @@ def open_pr(parent, git_pat, org, repo, jira_client):
         # not found", "documentation_url":
         # "https://docs.github.com/rest/reference/repos#get-a-branch"}
 
-    filenames = get_filenames(parent_branch, upstream)
-    commits = get_unmerged_commits(parent_branch, upstream)
+    filenames = get_filenames(parent, "upstream", repo_path)
+    commits = get_unmerged_commits(parent, "upstream", repo_path)
     commits_unique_to_this_branch = [x for x in commits if x.is_new and not x.is_merge]
 
     parts = branch_name.split("/")
@@ -261,7 +255,7 @@ def open_pr(parent, git_pat, org, repo, jira_client):
         new_tests=tests > 0,
     )
 
-    pr = create_pull(org, branch_name, parent_branch, short_desc, pr_body, github_repo)
+    pr = create_pull(org, branch_name, parent, short_desc, pr_body, github_repo)
 
     # @TODO post a thing to slack if it's not a draft
 
@@ -273,39 +267,30 @@ def open_pr(parent, git_pat, org, repo, jira_client):
     webbrowser.open(pr.html_url)
 
 
-def chdir_to_repo(repo_name):
-    try:
-        os.chdir(repo_parent() / repo_name)
-    except FileNotFoundError as e:
-        LOGGER.exception(e)
-        print(f"{repo_name} is not a valid repository")
-
-    try:
-        repo_name = repo_name.replace("pasa-v2x/", "")
-        os.chdir(repo_parent() / repo_name)
-    except FileNotFoundError as e:
-        LOGGER.exception(e)
-        print(f"{repo_name} is not a valid repository, exiting")
-        sys.exit()
-
-
-def fetch_branch_and_parent(repo_name):
-    chdir_to_repo(repo_name)
-    with Popen(["git", "status", "-sb"], stdin=PIPE, stdout=PIPE, stderr=PIPE) as p:
+def fetch_branch_and_parent(repo_path):
+    """Get current branch name and parent."""
+    with Popen(
+        ["git", "status", "-sb"],
+        stdin=PIPE,
+        stdout=PIPE,
+        stderr=PIPE,
+        cwd=repo_path,
+    ) as p:
         output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
-        p.returncode
-
         decoded = output.decode("utf-8")
 
-        branch_name, remainder = decoded.replace("## ", "").split("...")
-        parent = remainder.split(" ")[0]
+    try:
+        branch_name = decoded.split("...")[0].split(" ")[-1]
+        parent = decoded.split("...")[1].split(" ")[0]
         return branch_name, parent
+    except (IndexError, ValueError):
+        return None, "upstream/dev"
 
 
-def run_git_cmd(cmd):
+def run_git_cmd(cmd, repo_path):
     cmd.insert(0, "git")
 
-    with Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE) as p:
+    with Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=repo_path) as p:
         output, _ = p.communicate(b"input data that is passed to subprocess' stdin")
         p.returncode
 
@@ -339,14 +324,16 @@ class Commit:
         )
 
 
-def get_unmerged_commits(parent: str, remote: str) -> List[Commit]:
-    commits = run_git_cmd(["log", "--pretty=oneline", f"{remote}/{parent}.."]).split(
-        "\n"
-    )
+def get_unmerged_commits(parent: str, remote: str, repo_path: str) -> List[Commit]:
+    commits = run_git_cmd(
+        ["log", "--pretty=oneline", f"{remote}/{parent}.."], repo_path
+    ).split("\n")
 
     all = [Commit.from_log(commit) for commit in commits]
     return [x for x in all if x]
 
 
-def get_filenames(parent: str, remote: str) -> List[str]:
-    return run_git_cmd(["diff", f"{remote}/{parent}..", "--name-only"]).split("\n")
+def get_filenames(parent: str, remote: str, repo_path: str) -> List[str]:
+    return run_git_cmd(
+        ["diff", f"{remote}/{parent}..", "--name-only"], repo_path
+    ).split("\n")

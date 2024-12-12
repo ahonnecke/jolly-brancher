@@ -71,21 +71,36 @@ def choose_repo(repo_root: str, yes_to_all: bool):
     return repo
 
 
-def parse_args(args, repo_dirs, default_parent=None):
-    """
-    Extract the CLI arguments from argparse
-    """
-    parser = argparse.ArgumentParser(description="Sweet branch creation tool")
+def create_parser():
+    """Create and return the argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Git branch management tool with Jira integration",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
+    # Required arguments
     parser.add_argument(
-        "--parent",
-        help="Parent branch",
-        default=default_parent,
-        required=False,
+        "action",
+        choices=["list", "start", "end"],
+        help="Action to perform: list (show tickets), start (new branch), or end (create PR)",
     )
 
     parser.add_argument(
-        "--ticket", help="Ticket to build branch name from", required=False
+        "--repo",
+        required=True,
+        help="Absolute path to the git repository (e.g., ~/src/myproject)",
+    )
+
+    # Optional arguments
+    parser.add_argument(
+        "--parent",
+        default="dev",
+        help="Parent branch to create new branch from (default: dev)",
+    )
+
+    parser.add_argument(
+        "--ticket",
+        help="Ticket ID to use (required for 'start' action)",
     )
 
     parser.add_argument(
@@ -93,41 +108,55 @@ def parse_args(args, repo_dirs, default_parent=None):
         action="version",
         version=f"jolly_brancher {__version__}",
     )
-    parser.add_argument(
+
+    # Logging options
+    log_group = parser.add_argument_group("logging")
+    log_group.add_argument(
         "-v",
         "--verbose",
         dest="loglevel",
-        help="set loglevel to INFO",
+        help="Set loglevel to INFO",
         action="store_const",
         const=logging.INFO,
     )
-    parser.add_argument(
+
+    log_group.add_argument(
         "-vv",
         "--very-verbose",
         dest="loglevel",
-        help="set loglevel to DEBUG",
+        help="Set loglevel to DEBUG",
         action="store_const",
         const=logging.DEBUG,
     )
-    parser.add_argument(
-        "--repo",
-        help="Repository to operate on",
-        choices=repo_dirs,
-        required=False,
-    )
-    parser.add_argument(
+
+    # Behavior options
+    behavior_group = parser.add_argument_group("behavior")
+    behavior_group.add_argument(
         "-u",
         "--unassigned",
-        help="Include unassigned tickets",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "-y",
-        "--yes",
-        help="Answer yes to everything",
+        help="Include unassigned tickets in listing",
         action="store_true",
         default=False,
     )
 
-    return parser.parse_args(args)
+    behavior_group.add_argument(
+        "-y",
+        "--yes",
+        help="Automatically answer yes to all prompts",
+        action="store_true",
+        default=False,
+    )
+
+    return parser
+
+
+def parse_args(args=None):
+    """Parse command line arguments."""
+    parser = create_parser()
+    parsed_args = parser.parse_args(args)
+
+    # Validate that ticket is provided when action is 'start'
+    if parsed_args.action == "start" and not parsed_args.ticket:
+        parser.error("--ticket is required when action is 'start'")
+
+    return parsed_args

@@ -36,6 +36,7 @@ class IssueType(Enum):
     SUBTASK = "SUBTASK"
     TECHDEBT = "TECH-DEBT"
     INCIDENT = "INCIDENT"
+    FEATURE = "FEATURE"
 
     @classmethod
     def from_branch_name(cls, branch_name):
