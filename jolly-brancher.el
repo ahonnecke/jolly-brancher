@@ -134,11 +134,24 @@
       (message "Running command: %s" cmd)
       (shell-command cmd))))
 
+(defun jolly-brancher--format-description (text)
+  "Format TEXT for use as a Jira description.
+Wraps code blocks in triple backticks and preserves newlines."
+  (let ((lines (split-string text "\n")))
+    (format "{noformat}\n%s\n{noformat}" (string-join lines "\n"))))
+
 (defun jolly-brancher-create-ticket ()
-  "Create a new bug ticket."
+  "Create a new bug ticket.
+If region is active, use it as the default description."
   (interactive)
-  (let* ((title (read-string "Ticket title: "))
-         (description (read-string "Ticket description: "))
+  (let* ((default-description (when (use-region-p)
+                               (buffer-substring-no-properties
+                                (region-beginning)
+                                (region-end))))
+         (title (read-string "Ticket title: "))
+         (description (read-string "Ticket description: "
+                                 (when default-description
+                                   (jolly-brancher--format-description default-description))))
          (cmd (jolly-brancher--format-command
                nil
                "create-ticket"
