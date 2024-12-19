@@ -252,10 +252,10 @@ def main(args=None):
     )
 
     if args.action == "list":
-        issues = jira.get_all_issues()
+        project_key = jira_config.get("project")
+        issues = jira.get_all_issues(project_name=project_key)
         for issue in issues:
-            if str(issue.fields.status) == IssueStatus.IN_PROGRESS.value:
-                print(f"{issue.key}  {issue.fields.summary}")
+            print(f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}")
         return 0
 
     if args.action == "end":

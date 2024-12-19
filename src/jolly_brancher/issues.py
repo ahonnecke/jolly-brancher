@@ -14,16 +14,21 @@ ALL_SCOPE = "ALL"
 
 
 class IssueStatus(Enum):
+    """Status of an issue."""
+
     TODO = "To Do"
     IN_PROGRESS = "In Progress"
     BACKLOG = "Backlog"
+    NEW = "New"
 
-    @staticmethod
-    def selectable_statuses():
+    @classmethod
+    def selectable_statuses(cls):
+        """Get a list of selectable statuses."""
         return [
-            IssueStatus.BACKLOG,
-            IssueStatus.IN_PROGRESS,
-            IssueStatus.TODO,
+            cls.TODO,
+            cls.IN_PROGRESS,
+            cls.BACKLOG,
+            cls.NEW,
         ]
 
 
@@ -65,6 +70,16 @@ class IssueType(Enum):
 
 
 def get_all_issues(jira_client, project_name=None, scope=None):
+    """Get all issues from Jira.
+    
+    Args:
+        jira_client: JiraClient instance
+        project_name: Optional project key to filter by
+        scope: Optional scope filter
+        
+    Returns:
+        List of Jira issues
+    """
     issues = []
     i = 0
     chunk_size = 100
@@ -73,27 +88,24 @@ def get_all_issues(jira_client, project_name=None, scope=None):
         [f"'{str(x.value)}'" for x in IssueStatus.selectable_statuses()]
     )
 
-    users = ["currentUser()"]
-
-    if scope != USER_SCOPE:
-        users.append("EMPTY")
-
-    user_filter = ",".join(users)
-
-    # TODO, allow for searching for unassigned tix
+    # Include both assigned to me and unassigned tickets
     conditions = [
-        f"assignee in ({user_filter})",
+        f"(assignee = currentUser() OR assignee is EMPTY)",
         f"status in ({status_filter})",
     ]
-    order_by = "assignee,created DESC"
 
+    # Filter by project if specified
     if project_name:
         conditions.append(f"project = '{project_name}'")
+    else:
+        _logger.warning("No project key specified in config, showing tickets from all projects")
 
     condition_string = " and ".join(conditions)
-
+    order_by = "created DESC"
     if order_by:
         condition_string = condition_string + f" order by {order_by}"
+
+    _logger.debug("JQL Query: %s", condition_string)
 
     while True:
         chunk = jira_client.search_issues(
@@ -101,17 +113,15 @@ def get_all_issues(jira_client, project_name=None, scope=None):
             startAt=i,
             maxResults=chunk_size,
         )
+        if not chunk.iterable:
+            break
+
         i += chunk_size
         issues += chunk.iterable
 
-        if not chunk.iterable[0].fields.assignee:
-            # If the furst result is empty we have fetched all the
-            # tickets assigned to the current user, and a page of
-            # unassigned tickets
-            break
-
         if i >= chunk.total:
             break
+
     return issues
 
 
