@@ -374,52 +374,7 @@ def get_default_remote(repo_path):
 
 
 def get_default_branch(repo_path):
-    """Get the default branch for the repository."""
-    try:
-        # Try to get the symbolic ref for HEAD
-        result = subprocess.run(
-            ["git", "symbolic-ref", "refs/remotes/upstream/HEAD"],
-            check=True,
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-        )
-        if result.stdout:
-            # Output will be like "refs/remotes/upstream/main"
-            return result.stdout.strip().split('/')[-1]
-    except subprocess.CalledProcessError:
-        pass
-
-    try:
-        # If no upstream/HEAD, try origin/HEAD
-        result = subprocess.run(
-            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
-            check=True,
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-        )
-        if result.stdout:
-            # Output will be like "refs/remotes/origin/main"
-            return result.stdout.strip().split('/')[-1]
-    except subprocess.CalledProcessError:
-        pass
-
-    try:
-        # If no remote HEAD, try local HEAD
-        result = subprocess.run(
-            ["git", "symbolic-ref", "--short", "HEAD"],
-            check=True,
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-        )
-        if result.stdout:
-            return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        pass
-
-    # If all else fails, assume 'main'
+    """Get the default branch for a repository."""
     return 'main'
 
 

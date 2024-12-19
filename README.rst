@@ -73,7 +73,6 @@ JIRA and git credentials are required in `~/.config/jolly_brancher.ini` in the f
 
     [git]
     pat = <personal_access_token>
-    repo_root = <~/path/to/local/repositories>
     forge_root = https://github.com/<organization_name>/
 
 

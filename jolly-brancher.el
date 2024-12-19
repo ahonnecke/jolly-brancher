@@ -134,30 +134,38 @@
       (message "Running command: %s" cmd)
       (shell-command cmd))))
 
-;;;###autoload
-(defun jolly-brancher ()
-  "Git branch management with Jira integration."
+(defun jolly-brancher-create-ticket ()
+  "Create a new bug ticket."
   (interactive)
-  (transient-setup 'jolly-brancher))
+  (let* ((title (read-string "Ticket title: "))
+         (description (read-string "Ticket description: "))
+         (cmd (jolly-brancher--format-command
+               nil
+               "create-ticket"
+               (cons "--title" title)
+               (cons "--description" description)
+               (cons "--type" "Bug"))))
+    (compile cmd)))
 
-(transient-define-prefix jolly-brancher ()
-  "Git branch management with Jira integration."
+;;;###autoload
+(transient-define-prefix jolly-brancher-menu ()
+  "Show jolly-brancher menu."
   ["Actions"
    ("l" "List tickets" jolly-brancher-list-tickets)
-   ("o" "List open tickets" jolly-brancher-list-open-tickets)
    ("s" "Start branch" jolly-brancher-start-ticket)
-   ("e" "End branch (create PR)" jolly-brancher-end-branch)])
+   ("e" "End branch" jolly-brancher-end-branch)
+   ("c" "Create ticket" jolly-brancher-create-ticket)])
 
 ;;;###autoload
 (define-minor-mode jolly-brancher-mode
-  "Minor mode for jolly-brancher key bindings."
-  :global t
+  "Minor mode for jolly-brancher integration."
+  :lighter " JB"
   :keymap (let ((map (make-sparse-keymap)))
-            (define-key map (kbd "C-c j j") 'jolly-brancher)
+            (define-key map (kbd "C-c j j") 'jolly-brancher-menu)
             (define-key map (kbd "C-c j l") 'jolly-brancher-list-tickets)
-            (define-key map (kbd "C-c j o") 'jolly-brancher-list-open-tickets)
             (define-key map (kbd "C-c j s") 'jolly-brancher-start-ticket)
             (define-key map (kbd "C-c j e") 'jolly-brancher-end-branch)
+            (define-key map (kbd "C-c j c") 'jolly-brancher-create-ticket)
             map))
 
 ;;;###autoload

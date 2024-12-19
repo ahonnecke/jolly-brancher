@@ -49,8 +49,8 @@ def create_parser():
     # Required arguments
     parser.add_argument(
         "action",
-        choices=["list", "start", "end", "open-tickets"],
-        help="Action to perform: list (show tickets), start (new branch), end (create PR), or open-tickets (show active tickets)",
+        choices=["list", "start", "end", "open-tickets", "create-ticket"],
+        help="Action to perform: list (show tickets), start (new branch), end (create PR), open-tickets (show active tickets), or create-ticket (create new ticket)",
     )
 
     parser.add_argument(
@@ -63,13 +63,35 @@ def create_parser():
     # Optional arguments
     parser.add_argument(
         "--parent",
-        default="dev",
-        help="Parent branch to create new branch from (default: dev)",
+        default="main",
+        help="Parent branch to create new branch from (default: main)",
+    )
+
+    parser.add_argument(
+        "--remote",
+        default="upstream",
+        help="Remote to use for branch operations (default: upstream)",
     )
 
     parser.add_argument(
         "--ticket",
         help="Ticket ID to use (required for 'start' action)",
+    )
+
+    parser.add_argument(
+        "--title",
+        help="Title for the new ticket (required for create-ticket)",
+    )
+
+    parser.add_argument(
+        "--description",
+        help="Description for the new ticket (required for create-ticket)",
+    )
+
+    parser.add_argument(
+        "--type",
+        help="Type of ticket to create (default: BUG)",
+        default="BUG",
     )
 
     parser.add_argument(
@@ -127,5 +149,9 @@ def parse_args(args=None):
     # Validate that ticket is provided when action is 'start'
     if parsed_args.action == "start" and not parsed_args.ticket:
         parser.error("--ticket is required when action is 'start'")
+
+    # Validate that title and description are provided when action is 'create-ticket'
+    if parsed_args.action == "create-ticket" and (not parsed_args.title or not parsed_args.description):
+        parser.error("--title and --description are required when action is 'create-ticket'")
 
     return parsed_args

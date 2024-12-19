@@ -1,0 +1,8 @@
+[jira]
+# Project-specific settings that override global config
+project = PD
+branch_format = {issue_type}/{ticket}-{summary}
+
+[git]
+# Git-specific settings
+default_branch = main

@@ -12,8 +12,6 @@ _logger = logging.getLogger(__name__)
 USER_SCOPE = "USER"
 ALL_SCOPE = "ALL"
 
-USER_SCOPE = "USER"
-
 
 class IssueStatus(Enum):
     TODO = "To Do"
@@ -30,17 +28,17 @@ class IssueStatus(Enum):
 
 
 class IssueType(Enum):
-    EPIC = "EPIC"
-    STORY = "STORY"
-    ENHANCEMENT = "ENHANCEMENT"
-    BUG = "BUG"
-    TASK = "TASK"
-    SUB_TASK = "SUB-TASK"
-    SUBTASK = "SUBTASK"
-    TECHDEBT = "TECH-DEBT"
-    INCIDENT = "INCIDENT"
-    FEATURE = "FEATURE"
-    SPIKE = "SPIKE"
+    EPIC = "Epic"
+    STORY = "Story"
+    ENHANCEMENT = "Enhancement"
+    BUG = "Bug"
+    TASK = "Task"
+    SUB_TASK = "Sub-task"
+    SUBTASK = "Subtask"
+    TECHDEBT = "Tech Debt"
+    INCIDENT = "Incident"
+    FEATURE = "Feature"
+    SPIKE = "Spike"
 
     @classmethod
     def from_branch_name(cls, branch_name):
@@ -196,3 +194,52 @@ class JiraClient:
         pr_comment = "\n".join([head, body, foot])
 
         self.add_comment(issue, pr_comment)
+
+    def create_ticket(self, title, description, issue_type, project_key):
+        """Create a new ticket in Jira.
+        
+        Args:
+            title (str): The title/summary of the ticket
+            description (str): The description of the ticket
+            issue_type (str): The type of issue (must match available Jira issue types)
+            project_key (str): The project key where the ticket should be created
+            
+        Returns:
+            Issue: The created Jira issue object
+            
+        Raises:
+            ValueError: If the issue type is not valid
+            JIRAError: If there's an error creating the ticket
+        """
+        # Get available issue types for the specific project using createmeta
+        meta = self._JIRA.createmeta(
+            projectKeys=project_key,
+            expand='projects.issuetypes'
+        )
+        
+        if not meta.get('projects'):
+            raise ValueError(f"Project {project_key} not found or no issue types available")
+            
+        project_meta = meta['projects'][0]
+        project_issue_types = {it['name']: it['id'] for it in project_meta['issuetypes']}
+        _logger.debug("Available issue types for project %s: %s", project_key, project_issue_types)
+        
+        if issue_type not in project_issue_types:
+            raise ValueError(f"Issue type {issue_type} not available in project {project_key}. Available types: {list(project_issue_types.keys())}")
+
+        issue_dict = {
+            'project': {'key': project_key},
+            'summary': title,
+            'description': description,
+            'issuetype': {'id': str(project_issue_types[issue_type])}
+        }
+        
+        _logger.debug("Creating issue with data: %s", issue_dict)
+
+        try:
+            new_issue = self._JIRA.create_issue(fields=issue_dict)
+            _logger.info("Created issue %s", new_issue.key)
+            return new_issue
+        except JIRAError as e:
+            _logger.error("Failed to create issue: %s", str(e))
+            raise

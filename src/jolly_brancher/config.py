@@ -3,8 +3,10 @@
 import configparser
 import os
 import sys
+from typing import Optional
 
 FILENAME = "jolly_brancher.ini"
+LOCAL_CONFIG_FILENAME = ".jolly.ini"
 TOKEN_URL = "https://id.atlassian.com/manage-profile/security/api-tokens"
 CONFIG_DIR = os.path.expanduser("~/.config")
 CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
@@ -37,21 +39,89 @@ def ensure_config_exists():
     return config
 
 
+def find_repo_root(start_path: Optional[str] = None) -> Optional[str]:
+    """Find the root directory of the git repository.
+    
+    Args:
+        start_path: Path to start searching from. Defaults to current directory.
+        
+    Returns:
+        str: Path to repository root, or None if not in a git repository
+    """
+    if start_path is None:
+        start_path = os.getcwd()
+        
+    current = os.path.abspath(start_path)
+    
+    while current != '/':
+        if os.path.exists(os.path.join(current, '.git')):
+            return current
+        current = os.path.dirname(current)
+    
+    return None
+
+
+def get_local_config() -> Optional[configparser.ConfigParser]:
+    """Get configuration from local .jolly file if it exists."""
+    repo_root = find_repo_root()
+    if not repo_root:
+        return None
+        
+    local_config_path = os.path.join(repo_root, LOCAL_CONFIG_FILENAME)
+    if not os.path.exists(local_config_path):
+        return None
+        
+    config = configparser.ConfigParser()
+    config.read(local_config_path)
+    return config
+
+
+def merge_configs(global_config: configparser.ConfigParser, 
+                 local_config: Optional[configparser.ConfigParser]) -> configparser.ConfigParser:
+    """Merge global and local configurations, with local taking precedence."""
+    if not local_config:
+        return global_config
+        
+    merged = configparser.ConfigParser()
+    
+    # Copy global config first
+    for section in global_config.sections():
+        if not merged.has_section(section):
+            merged.add_section(section)
+        for key, value in global_config.items(section):
+            merged[section][key] = value
+            
+    # Override with local config
+    for section in local_config.sections():
+        if not merged.has_section(section):
+            merged.add_section(section)
+        for key, value in local_config.items(section):
+            merged[section][key] = value
+            
+    return merged
+
+
 def get_config():
-    """Get configuration, creating it if necessary."""
+    """Get configuration, merging global and local configs if they exist."""
     if not os.path.exists(CONFIG_FILENAME):
         sys.exit(
             f"Error: Configuration file not found at {CONFIG_FILENAME}. Please create it with the required settings."
         )
 
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILENAME)
+    global_config = configparser.ConfigParser()
+    global_config.read(CONFIG_FILENAME)
+
+    # Get local config if it exists
+    local_config = get_local_config()
+    
+    # Merge configs, with local taking precedence
+    config = merge_configs(global_config, local_config)
 
     # Verify required sections exist
     if JIRA_SECTION_NAME not in config:
-        sys.exit(f"Error: Missing [{JIRA_SECTION_NAME}] section in {CONFIG_FILENAME}")
+        sys.exit(f"Error: Missing [{JIRA_SECTION_NAME}] section in config")
     if GIT_SECTION_NAME not in config:
-        sys.exit(f"Error: Missing [{GIT_SECTION_NAME}] section in {CONFIG_FILENAME}")
+        sys.exit(f"Error: Missing [{GIT_SECTION_NAME}] section in config")
 
     return config
 
@@ -64,7 +134,7 @@ def get_config_value(section, key, default=None):
         if default is not None:
             return default
         sys.exit(
-            f"Error: Missing required config value '{key}' in section [{section}] of {CONFIG_FILENAME}"
+            f"Error: Missing required config value '{key}' in section [{section}] of config"
         )
 
     return config[section][key]
@@ -90,15 +160,17 @@ def get_jira_config():
             "branch_format": get_config_value(
                 JIRA_SECTION_NAME, "branch_format", default=DEFAULT_BRANCH_FORMAT
             ),
+            "project": get_config_value(JIRA_SECTION_NAME, "project", default=None),
         }
     except SystemExit as e:
         sys.exit(
             f"Error: Missing required Jira configuration. {str(e)}\n"
-            f"Please ensure {CONFIG_FILENAME} contains:\n"
+            f"Please ensure config contains:\n"
             f"[{JIRA_SECTION_NAME}]\n"
             "auth_email = your.email@example.com\n"
             "base_url = https://your-org.atlassian.net\n"
             "token = your-jira-api-token\n"
+            "project = YOUR-PROJECT-KEY  # Optional, but recommended\n"
             f"branch_format = {DEFAULT_BRANCH_FORMAT}"
         )
 
