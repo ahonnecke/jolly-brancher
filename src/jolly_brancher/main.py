@@ -312,6 +312,17 @@ def main(args=None):
             _logger.error("Could not find ticket %s", args.ticket)
             sys.exit(1)
 
+        # Start work on the ticket in Jira
+        if not jira.start_work(myissue):
+            _logger.warning("Failed to update Jira ticket status, but continuing with branch creation")
+
+        # Try to add to current sprint using board_id from config if available
+        board_id = jira_config.get("board_id")
+        if board_id:
+            current_sprint = jira.get_current_sprint(board_id=board_id)
+            if current_sprint:
+                jira.add_to_sprint(current_sprint.id, myissue)
+
         branch_name = create_branch_name(myissue)
 
         # Check if branch already exists

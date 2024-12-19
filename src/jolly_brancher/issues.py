@@ -141,6 +141,7 @@ class JiraClient:
         # testing async
         self._JIRA = JIRA(url, basic_auth=(email, token), options={"async": True})
         self.scope = False
+        self.email = email
         if user_scope:
             self.scope = USER_SCOPE
 
@@ -253,3 +254,96 @@ class JiraClient:
         except JIRAError as e:
             _logger.error("Failed to create issue: %s", str(e))
             raise
+
+    def assign_to_me(self, issue):
+        """Assign the issue to the current user."""
+        try:
+            self._JIRA.assign_issue(issue, self.email)
+            _logger.info("Assigned %s to %s", issue.key, self.email)
+            return True
+        except JIRAError as e:
+            _logger.error("Failed to assign issue %s: %s", issue.key, str(e))
+            return False
+
+    def get_current_sprint(self, board_id=None):
+        """Get the current active sprint.
+        
+        Args:
+            board_id: Optional board ID. If not provided, will try to find the first active sprint.
+            
+        Returns:
+            The current sprint or None if not found
+        """
+        try:
+            if board_id:
+                boards = [self._JIRA.board(board_id)]
+            else:
+                # Get all boards
+                boards = self._JIRA.boards()
+                
+            for board in boards:
+                try:
+                    # Get active sprints for this board
+                    sprints = self._JIRA.sprints(board.id, state='active')
+                    if sprints:
+                        # Return the first active sprint found
+                        return sprints[0]
+                except JIRAError as e:
+                    _logger.debug("Error getting sprints for board %s: %s", board.id, str(e))
+                    continue
+                    
+            _logger.warning("No active sprint found")
+            return None
+            
+        except JIRAError as e:
+            _logger.error("Failed to get current sprint: %s", str(e))
+            return None
+
+    def add_to_sprint(self, sprint_id, issue):
+        """Add an issue to a sprint."""
+        try:
+            self._JIRA.add_issues_to_sprint(sprint_id, [issue.key])
+            _logger.info("Added %s to sprint %s", issue.key, sprint_id)
+            return True
+        except JIRAError as e:
+            _logger.error("Failed to add issue %s to sprint %s: %s", 
+                         issue.key, sprint_id, str(e))
+            return False
+
+    def start_work(self, issue):
+        """Start work on an issue by assigning it, transitioning to In Progress, and adding to current sprint."""
+        success = self.assign_to_me(issue)
+        if not success:
+            return False
+
+        # Try to add to current sprint
+        current_sprint = self.get_current_sprint()
+        if current_sprint:
+            self.add_to_sprint(current_sprint.id, issue)
+        else:
+            _logger.warning("No active sprint found, skipping sprint assignment")
+
+        try:
+            # Get available transitions
+            transitions = self._JIRA.transitions(issue)
+            _logger.debug("Available transitions for %s: %s", 
+                         issue.key, 
+                         [(t['id'], t['name']) for t in transitions])
+            
+            # Find the "In Progress" transition
+            in_progress_transition = next(
+                (t for t in transitions if t['name'] == IssueStatus.IN_PROGRESS.value),
+                None
+            )
+            
+            if in_progress_transition:
+                self._JIRA.transition_issue(issue, in_progress_transition['id'])
+                _logger.info("Transitioned %s to In Progress", issue.key)
+                return True
+            else:
+                _logger.error("No In Progress transition found for %s", issue.key)
+                return False
+                
+        except JIRAError as e:
+            _logger.error("Failed to transition issue %s: %s", issue.key, str(e))
+            return False

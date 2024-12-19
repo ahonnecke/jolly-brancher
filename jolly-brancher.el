@@ -48,19 +48,20 @@
 
 (defun jolly-brancher--format-command (repo-path action &rest args)
   "Format a jolly-brancher command with REPO-PATH, ACTION and ARGS."
-  (let ((cmd-args (list "jolly-brancher" "-vv")))
+  (message "DEBUG: Command args before processing: %S" args)
+  (let ((cmd-args (list jolly-brancher-command "-vv")))
     (when repo-path
       (setq cmd-args (append cmd-args (list "--repo" repo-path))))
     (setq cmd-args (append cmd-args (list action)))
     (dolist (arg-pair args)
-      (when arg-pair
+      (message "DEBUG: Processing arg pair: %S" arg-pair)
+      (when (and (consp arg-pair) (car arg-pair) (cdr arg-pair))
+        (message "DEBUG: Adding to cmd-args: %S %S" (car arg-pair) (cdr arg-pair))
         (setq cmd-args (append cmd-args (list (car arg-pair) (cdr arg-pair))))))
-    (mapconcat #'shell-quote-argument cmd-args " ")))
-
-(defun jolly-brancher--get-repo-root ()
-  "Get the root directory of the current project."
-  (when-let ((project (project-current)))
-    (directory-file-name (project-root project))))
+    (message "DEBUG: Final cmd-args before quoting: %S" cmd-args)
+    (let ((final-cmd (string-join (mapcar #'shell-quote-argument cmd-args) " ")))
+      (message "DEBUG: Final command: %S" final-cmd)
+      final-cmd)))
 
 (define-derived-mode jolly-brancher-tickets-mode special-mode "Jolly-Tickets"
   "Major mode for Jolly Brancher ticket listing."
@@ -140,34 +141,54 @@ Wraps code blocks in triple backticks and preserves newlines."
   (let ((lines (split-string text "\n")))
     (format "{noformat}\n%s\n{noformat}" (string-join lines "\n"))))
 
-(defun jolly-brancher-create-ticket ()
-  "Create a new bug ticket.
-If region is active, use it as the default description."
-  (interactive)
-  (let* ((default-description (when (use-region-p)
-                               (buffer-substring-no-properties
-                                (region-beginning)
-                                (region-end))))
-         (title (read-string "Ticket title: "))
-         (description (read-string "Ticket description: "
-                                 (when default-description
-                                   (jolly-brancher--format-description default-description))))
-         (cmd (jolly-brancher--format-command
-               nil
-               "create-ticket"
-               (cons "--title" title)
-               (cons "--description" description)
-               (cons "--type" "Bug"))))
-    (compile cmd)))
+(defun jolly-brancher--maybe-create-from-region ()
+  "If region is active, create a ticket with the selected text as description."
+  (when (use-region-p)
+    (let ((text (buffer-substring-no-properties (region-beginning) (region-end))))
+      (deactivate-mark)
+      (jolly-brancher-create-ticket text))))
 
 ;;;###autoload
 (transient-define-prefix jolly-brancher-menu ()
   "Show jolly-brancher menu."
+  :value '("--type" "Bug")  ; Default issue type
+  ["Arguments"
+   ("-t" "Issue Type" "--type" :choices ("Bug" "Story" "Task" "Enhancement"))]
   ["Actions"
    ("l" "List tickets" jolly-brancher-list-tickets)
+   ("o" "List open tickets" jolly-brancher-list-open-tickets)
    ("s" "Start branch" jolly-brancher-start-ticket)
    ("e" "End branch" jolly-brancher-end-branch)
-   ("c" "Create ticket" jolly-brancher-create-ticket)])
+   ("c" "Create ticket" jolly-brancher-create-ticket)]
+  (interactive)
+  (transient-setup 'jolly-brancher-menu))
+
+(defun jolly-brancher-create-ticket (&optional initial-description)
+  "Create a new bug ticket.
+If INITIAL-DESCRIPTION is provided or region is active, use it as the default description."
+  (interactive)
+  (message "DEBUG: Starting create-ticket with initial-description: %S" initial-description)
+  (let* ((default-description (or initial-description
+                                 (when (use-region-p)
+                                   (buffer-substring-no-properties
+                                    (region-beginning)
+                                    (region-end)))))
+         (title (read-string "Ticket title: "))
+         (description (read-string "Ticket description: "
+                                 (when default-description
+                                   (jolly-brancher--format-description default-description))))
+         (type (or (let ((type-arg (transient-arg-value "--type" (transient-args 'jolly-brancher-menu))))
+                    (if (stringp type-arg) type-arg nil))
+                  "Bug")))
+    (message "DEBUG: Creating ticket with title: %S description: %S type: %S" title description type)
+    (let ((cmd (jolly-brancher--format-command
+                nil
+                "create-ticket"
+                (cons "--title" title)
+                (cons "--description" description)
+                (cons "--type" type))))
+      (message "DEBUG: Final command string: %S" cmd)
+      (compile cmd))))
 
 ;;;###autoload
 (define-minor-mode jolly-brancher-mode
@@ -176,9 +197,10 @@ If region is active, use it as the default description."
   :keymap (let ((map (make-sparse-keymap)))
             (define-key map (kbd "C-c j j") 'jolly-brancher-menu)
             (define-key map (kbd "C-c j l") 'jolly-brancher-list-tickets)
+            (define-key map (kbd "C-c j o") 'jolly-brancher-list-open-tickets)
             (define-key map (kbd "C-c j s") 'jolly-brancher-start-ticket)
             (define-key map (kbd "C-c j e") 'jolly-brancher-end-branch)
-            (define-key map (kbd "C-c j c") 'jolly-brancher-create-ticket)
+            (define-key map (kbd "C-c j c") 'jolly-brancher--maybe-create-from-region)
             map))
 
 ;;;###autoload
