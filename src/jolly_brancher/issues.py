@@ -289,10 +289,12 @@ class JiraClient:
                         # Return the first active sprint found
                         return sprints[0]
                 except JIRAError as e:
-                    _logger.debug("Error getting sprints for board %s: %s", board.id, str(e))
+                    # Only log if it's not the common "board does not support sprints" error
+                    if "does not support sprints" not in str(e):
+                        _logger.debug("Error getting sprints for board %s: %s", board.id, str(e))
                     continue
-                    
-            _logger.warning("No active sprint found")
+                
+            _logger.debug("No active sprint found")
             return None
             
         except JIRAError as e:

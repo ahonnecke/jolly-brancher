@@ -325,18 +325,21 @@ def main(args=None):
 
         branch_name = create_branch_name(myissue)
 
-        # Check if branch already exists
-        try:
-            subprocess.run(
-                ["git", "rev-parse", "--verify", branch_name],
-                check=True,
-                cwd=repo_path,
-                capture_output=True,
-            )
-            _logger.error("Branch %s already exists", branch_name)
-            sys.exit(1)
-        except subprocess.CalledProcessError:
-            pass
+        # Check if branch exists locally or remotely
+        if branch_exists(branch_name, repo_path):
+            # If branch exists but is not checked out, check it out
+            try:
+                subprocess.run(
+                    ["git", "checkout", branch_name],
+                    check=True,
+                    cwd=repo_path,
+                    capture_output=True,
+                )
+                _logger.info("Switched to existing branch %s", branch_name)
+                return 0
+            except subprocess.CalledProcessError:
+                _logger.error("Branch %s exists but could not be checked out", branch_name)
+                sys.exit(1)
 
         # Get parent branch
         parent_branch = args.parent

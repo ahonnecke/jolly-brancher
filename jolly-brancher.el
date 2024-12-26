@@ -43,6 +43,12 @@
   :type 'string
   :group 'jolly-brancher)
 
+(defcustom jolly-brancher-issue-types
+  '("Bug" "Story" "Task" "Enhancement" "Feature")
+  "List of available issue types."
+  :type '(repeat string)
+  :group 'jolly-brancher)
+
 (defvar-local jolly-brancher--current-repo nil
   "The current repository path for jolly-brancher commands.")
 
@@ -62,6 +68,13 @@
     (let ((final-cmd (string-join (mapcar #'shell-quote-argument cmd-args) " ")))
       (message "DEBUG: Final command: %S" final-cmd)
       final-cmd)))
+
+(defun jolly-brancher--get-repo-root ()
+  "Get the root directory of the current Git repository.
+Returns nil if not in a Git repository."
+  (when-let* ((project (project-current))
+              (root (project-root project)))
+    (expand-file-name root)))
 
 (define-derived-mode jolly-brancher-tickets-mode special-mode "Jolly-Tickets"
   "Major mode for Jolly Brancher ticket listing."
@@ -151,9 +164,6 @@ Wraps code blocks in triple backticks and preserves newlines."
 ;;;###autoload
 (transient-define-prefix jolly-brancher-menu ()
   "Show jolly-brancher menu."
-  :value '("--type" "Bug")  ; Default issue type
-  ["Arguments"
-   ("-t" "Issue Type" "--type" :choices ("Bug" "Story" "Task" "Enhancement"))]
   ["Actions"
    ("l" "List tickets" jolly-brancher-list-tickets)
    ("o" "List open tickets" jolly-brancher-list-open-tickets)
@@ -173,13 +183,12 @@ If INITIAL-DESCRIPTION is provided or region is active, use it as the default de
                                    (buffer-substring-no-properties
                                     (region-beginning)
                                     (region-end)))))
-         (title (read-string "Ticket title: "))
+         (title (read-string "Ticket title: ")
          (description (read-string "Ticket description: "
                                  (when default-description
                                    (jolly-brancher--format-description default-description))))
-         (type (or (let ((type-arg (transient-arg-value "--type" (transient-args 'jolly-brancher-menu))))
-                    (if (stringp type-arg) type-arg nil))
-                  "Bug")))
+         (type (completing-read "Issue type: " jolly-brancher-issue-types
+                              nil t nil nil "Bug")))
     (message "DEBUG: Creating ticket with title: %S description: %S type: %S" title description type)
     (let ((cmd (jolly-brancher--format-command
                 nil
