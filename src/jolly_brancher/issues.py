@@ -71,12 +71,12 @@ class IssueType(Enum):
 
 def get_all_issues(jira_client, project_name=None, scope=None):
     """Get all issues from Jira.
-    
+
     Args:
         jira_client: JiraClient instance
         project_name: Optional project key to filter by
         scope: Optional scope filter
-        
+
     Returns:
         List of Jira issues
     """
@@ -92,13 +92,16 @@ def get_all_issues(jira_client, project_name=None, scope=None):
     conditions = [
         f"(assignee = currentUser() OR assignee is EMPTY)",
         f"status in ({status_filter})",
+        "created >= -5w",  # Only show tickets created in the last 2 weeks
     ]
 
     # Filter by project if specified
     if project_name:
         conditions.append(f"project = '{project_name}'")
     else:
-        _logger.warning("No project key specified in config, showing tickets from all projects")
+        _logger.warning(
+            "No project key specified in config, showing tickets from all projects"
+        )
 
     condition_string = " and ".join(conditions)
     order_by = "created DESC"
@@ -208,43 +211,50 @@ class JiraClient:
 
     def create_ticket(self, title, description, issue_type, project_key):
         """Create a new ticket in Jira.
-        
+
         Args:
             title (str): The title/summary of the ticket
             description (str): The description of the ticket
             issue_type (str): The type of issue (must match available Jira issue types)
             project_key (str): The project key where the ticket should be created
-            
+
         Returns:
             Issue: The created Jira issue object
-            
+
         Raises:
             ValueError: If the issue type is not valid
             JIRAError: If there's an error creating the ticket
         """
         # Get available issue types for the specific project using createmeta
         meta = self._JIRA.createmeta(
-            projectKeys=project_key,
-            expand='projects.issuetypes'
+            projectKeys=project_key, expand="projects.issuetypes"
         )
-        
-        if not meta.get('projects'):
-            raise ValueError(f"Project {project_key} not found or no issue types available")
-            
-        project_meta = meta['projects'][0]
-        project_issue_types = {it['name']: it['id'] for it in project_meta['issuetypes']}
-        _logger.debug("Available issue types for project %s: %s", project_key, project_issue_types)
-        
+
+        if not meta.get("projects"):
+            raise ValueError(
+                f"Project {project_key} not found or no issue types available"
+            )
+
+        project_meta = meta["projects"][0]
+        project_issue_types = {
+            it["name"]: it["id"] for it in project_meta["issuetypes"]
+        }
+        _logger.debug(
+            "Available issue types for project %s: %s", project_key, project_issue_types
+        )
+
         if issue_type not in project_issue_types:
-            raise ValueError(f"Issue type {issue_type} not available in project {project_key}. Available types: {list(project_issue_types.keys())}")
+            raise ValueError(
+                f"Issue type {issue_type} not available in project {project_key}. Available types: {list(project_issue_types.keys())}"
+            )
 
         issue_dict = {
-            'project': {'key': project_key},
-            'summary': title,
-            'description': description,
-            'issuetype': {'id': str(project_issue_types[issue_type])}
+            "project": {"key": project_key},
+            "summary": title,
+            "description": description,
+            "issuetype": {"id": str(project_issue_types[issue_type])},
         }
-        
+
         _logger.debug("Creating issue with data: %s", issue_dict)
 
         try:
@@ -267,10 +277,10 @@ class JiraClient:
 
     def get_current_sprint(self, board_id=None):
         """Get the current active sprint.
-        
+
         Args:
             board_id: Optional board ID. If not provided, will try to find the first active sprint.
-            
+
         Returns:
             The current sprint or None if not found
         """
@@ -280,23 +290,25 @@ class JiraClient:
             else:
                 # Get all boards
                 boards = self._JIRA.boards()
-                
+
             for board in boards:
                 try:
                     # Get active sprints for this board
-                    sprints = self._JIRA.sprints(board.id, state='active')
+                    sprints = self._JIRA.sprints(board.id, state="active")
                     if sprints:
                         # Return the first active sprint found
                         return sprints[0]
                 except JIRAError as e:
                     # Only log if it's not the common "board does not support sprints" error
                     if "does not support sprints" not in str(e):
-                        _logger.debug("Error getting sprints for board %s: %s", board.id, str(e))
+                        _logger.debug(
+                            "Error getting sprints for board %s: %s", board.id, str(e)
+                        )
                     continue
-                
+
             _logger.debug("No active sprint found")
             return None
-            
+
         except JIRAError as e:
             _logger.error("Failed to get current sprint: %s", str(e))
             return None
@@ -308,8 +320,9 @@ class JiraClient:
             _logger.info("Added %s to sprint %s", issue.key, sprint_id)
             return True
         except JIRAError as e:
-            _logger.error("Failed to add issue %s to sprint %s: %s", 
-                         issue.key, sprint_id, str(e))
+            _logger.error(
+                "Failed to add issue %s to sprint %s: %s", issue.key, sprint_id, str(e)
+            )
             return False
 
     def start_work(self, issue):
@@ -328,24 +341,26 @@ class JiraClient:
         try:
             # Get available transitions
             transitions = self._JIRA.transitions(issue)
-            _logger.debug("Available transitions for %s: %s", 
-                         issue.key, 
-                         [(t['id'], t['name']) for t in transitions])
-            
+            _logger.debug(
+                "Available transitions for %s: %s",
+                issue.key,
+                [(t["id"], t["name"]) for t in transitions],
+            )
+
             # Find the "In Progress" transition
             in_progress_transition = next(
-                (t for t in transitions if t['name'] == IssueStatus.IN_PROGRESS.value),
-                None
+                (t for t in transitions if t["name"] == IssueStatus.IN_PROGRESS.value),
+                None,
             )
-            
+
             if in_progress_transition:
-                self._JIRA.transition_issue(issue, in_progress_transition['id'])
+                self._JIRA.transition_issue(issue, in_progress_transition["id"])
                 _logger.info("Transitioned %s to In Progress", issue.key)
                 return True
             else:
                 _logger.error("No In Progress transition found for %s", issue.key)
                 return False
-                
+
         except JIRAError as e:
             _logger.error("Failed to transition issue %s: %s", issue.key, str(e))
             return False
