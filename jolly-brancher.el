@@ -183,10 +183,10 @@ If INITIAL-DESCRIPTION is provided or region is active, use it as the default de
                                    (buffer-substring-no-properties
                                     (region-beginning)
                                     (region-end)))))
-         (title (read-string "Ticket title: ")
+         (title (read-string "Ticket title: "))
          (description (read-string "Ticket description: "
-                                 (when default-description
-                                   (jolly-brancher--format-description default-description))))
+                                   (when default-description
+                                     (jolly-brancher--format-description default-description))))
          (type (completing-read "Issue type: " jolly-brancher-issue-types
                               nil t nil nil "Bug")))
     (message "DEBUG: Creating ticket with title: %S description: %S type: %S" title description type)
