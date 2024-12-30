@@ -197,7 +197,7 @@ If INITIAL-DESCRIPTION is provided or region is active, use it as the default de
                 (cons "--description" description)
                 (cons "--type" type))))
       (message "DEBUG: Final command string: %S" cmd)
-      (compile cmd))))
+      (shell-command cmd))))
 
 ;;;###autoload
 (define-minor-mode jolly-brancher-mode
