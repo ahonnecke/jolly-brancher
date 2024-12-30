@@ -58,6 +58,52 @@
 (defvar-local jolly-brancher--list-repo-path nil
   "Store the repository path for the ticket list.")
 
+;; Face definitions for syntax highlighting
+(defface jolly-brancher-ticket-face
+  '((((class color) (background light))
+     (:foreground "#4078f2" :weight bold))
+    (((class color) (background dark))
+     (:foreground "#88c0d0" :weight bold)))
+  "Face for ticket numbers."
+  :group 'jolly-brancher)
+
+(defface jolly-brancher-status-face
+  '((((class color) (background light))
+     (:foreground "#50a14f" :weight bold))
+    (((class color) (background dark))
+     (:foreground "#a3be8c" :weight bold)))
+  "Face for ticket status."
+  :group 'jolly-brancher)
+
+(defface jolly-brancher-query-face
+  '((((class color) (background light))
+     (:foreground "#6c71c4" :weight bold))
+    (((class color) (background dark))
+     (:foreground "#8f94fb" :weight bold)))
+  "Face for the query heading."
+  :group 'jolly-brancher)
+
+(defconst jolly-brancher-tickets-mode-font-lock-keywords
+  `(
+    ;; Active Query heading
+    ("^Active Query:$" . 'jolly-brancher-query-face)
+    ;; Ticket numbers (e.g. PD-1234)
+    ("[A-Z]+-[0-9]+" . 'jolly-brancher-ticket-face)
+    ;; Status text in brackets
+    ("\\[\\([^]]+\\)\\]" 1 'jolly-brancher-status-face)))
+
+(define-derived-mode jolly-brancher-tickets-mode special-mode "Jolly-Tickets"
+  "Major mode for Jolly Brancher ticket listing."
+  (setq buffer-read-only t)
+  (setq-local line-move-visual t)
+  (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
+  (font-lock-mode 1))
+
+(let ((map jolly-brancher-tickets-mode-map))
+  (define-key map (kbd "RET") #'jolly-brancher-start-ticket-at-point)
+  (define-key map "g" #'jolly-brancher-refresh-tickets)
+  (define-key map "q" #'quit-window))
+
 (defun jolly-brancher--format-command (repo-path action &rest args)
   "Format a jolly-brancher command with REPO-PATH, ACTION and ARGS."
   (message "DEBUG: Command args before processing: %S" args)
@@ -81,16 +127,6 @@ Returns nil if not in a Git repository."
   (when-let* ((project (project-current))
               (root (project-root project)))
     (expand-file-name root)))
-
-(define-derived-mode jolly-brancher-tickets-mode special-mode "Jolly-Tickets"
-  "Major mode for Jolly Brancher ticket listing."
-  (setq buffer-read-only t)
-  (setq-local line-move-visual t))
-
-(let ((map jolly-brancher-tickets-mode-map))
-  (define-key map (kbd "RET") #'jolly-brancher-start-ticket-at-point)
-  (define-key map "g" #'jolly-brancher-refresh-tickets)
-  (define-key map "q" #'quit-window))
 
 (defun jolly-brancher-refresh-tickets ()
   "Manually refresh the tickets list."
@@ -194,16 +230,16 @@ If INITIAL-DESCRIPTION is provided or region is active, use it as the default de
   (interactive)
   (message "DEBUG: Starting create-ticket with initial-description: %S" initial-description)
   (let* ((default-description (or initial-description
-                                 (when (use-region-p)
-                                   (buffer-substring-no-properties
-                                    (region-beginning)
-                                    (region-end)))))
-         (title (read-string "Ticket title: "))
+                                  (when (use-region-p)
+                                    (buffer-substring-no-properties
+                                     (region-beginning)
+                                     (region-end)))))
+         (title (read-string "Ticket title: ")
          (description (read-string "Ticket description: "
                                    (when default-description
                                      (jolly-brancher--format-description default-description))))
          (type (completing-read "Issue type: " jolly-brancher-issue-types
-                              nil t nil nil "Bug")))
+                                nil t nil nil "Bug")))
     (message "DEBUG: Creating ticket with title: %S description: %S type: %S" title description type)
     (let ((cmd (jolly-brancher--format-command
                 nil

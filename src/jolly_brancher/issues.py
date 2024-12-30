@@ -108,7 +108,9 @@ def get_all_issues(jira_client, project_name=None, scope=None):
     if order_by:
         condition_string = condition_string + f" order by {order_by}"
 
-    _logger.debug("JQL Query: %s", condition_string)
+    # Print query as a heading
+    print("\nActive Query:")
+    print(condition_string + "\n")
 
     while True:
         chunk = jira_client.search_issues(
