@@ -52,6 +52,12 @@
 (defvar-local jolly-brancher--current-repo nil
   "The current repository path for jolly-brancher commands.")
 
+(defvar-local jolly-brancher--list-command nil
+  "Store the command used to generate the ticket list.")
+
+(defvar-local jolly-brancher--list-repo-path nil
+  "Store the repository path for the ticket list.")
+
 (defun jolly-brancher--format-command (repo-path action &rest args)
   "Format a jolly-brancher command with REPO-PATH, ACTION and ARGS."
   (message "DEBUG: Command args before processing: %S" args)
@@ -83,22 +89,32 @@ Returns nil if not in a Git repository."
 
 (let ((map jolly-brancher-tickets-mode-map))
   (define-key map (kbd "RET") #'jolly-brancher-start-ticket-at-point)
-  (define-key map [mouse-1] #'jolly-brancher-start-ticket-at-point)
+  (define-key map "g" #'jolly-brancher-refresh-tickets)
   (define-key map "q" #'quit-window))
+
+(defun jolly-brancher-refresh-tickets ()
+  "Manually refresh the tickets list."
+  (interactive)
+  (when (and jolly-brancher--list-command jolly-brancher--list-repo-path)
+    (jolly-brancher--display-tickets jolly-brancher--list-command jolly-brancher--list-repo-path)))
 
 (defun jolly-brancher--display-tickets (command repo-path)
   "Run COMMAND and display results in a tickets buffer with REPO-PATH."
   (let ((buf (get-buffer-create "*Jolly Brancher Tickets*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
+        (unless (eq major-mode 'jolly-brancher-tickets-mode)
+          (jolly-brancher-tickets-mode)  ; Set mode only if not already set
+          (setq-local jolly-brancher--current-repo repo-path)
+          (setq-local jolly-brancher--list-command command)
+          (setq-local jolly-brancher--list-repo-path repo-path))
         (erase-buffer)
-        (jolly-brancher-tickets-mode)  ; Set mode first
         (insert "Jolly Brancher Tickets\n\n")
-        (insert "Press RET or click on a ticket to start a branch.\n\n")
-        (setq-local jolly-brancher--current-repo repo-path)
+        (insert "Press RET to start a branch.\n")
+        (insert "Press 'g' to refresh the list.\n\n")
         (shell-command command t)  ; Insert into current buffer
         (goto-char (point-min))))
-    (switch-to-buffer buf)))
+    (pop-to-buffer buf '((display-buffer-reuse-window display-buffer-same-window)))))
 
 (defun jolly-brancher--get-ticket-at-point ()
   "Get the ticket ID at point."
@@ -130,8 +146,7 @@ Returns nil if not in a Git repository."
               (repo-path (buffer-local-value 'jolly-brancher--current-repo (current-buffer))))
     (let ((cmd (jolly-brancher--format-command repo-path "start" (cons "--ticket" ticket-id))))
       (message "Starting branch for ticket %s in %s" ticket-id repo-path)
-      (shell-command cmd))
-    t))
+      (shell-command cmd))))
 
 (defun jolly-brancher-start-ticket (ticket-key)
   "Start work on TICKET-KEY."
