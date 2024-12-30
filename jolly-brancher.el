@@ -83,8 +83,18 @@
   "Face for the query heading."
   :group 'jolly-brancher)
 
+(defface jolly-brancher-repo-face
+  '((((class color) (background light))
+     (:foreground "#986801" :weight bold))
+    (((class color) (background dark))
+     (:foreground "#ebcb8b" :weight bold)))
+  "Face for repository path."
+  :group 'jolly-brancher)
+
 (defconst jolly-brancher-tickets-mode-font-lock-keywords
   `(
+    ;; Repository path
+    ("^Repository: \\(.*\\)$" (1 'jolly-brancher-repo-face))
     ;; Active Query heading
     ("^Active Query:$" . 'jolly-brancher-query-face)
     ;; Ticket numbers (e.g. PD-1234)

@@ -18,7 +18,7 @@ from jolly_brancher.git import (
     create_branch_name,
     get_upstream_repo,
 )
-from jolly_brancher.issues import IssueStatus, JiraClient
+from jolly_brancher.issues import IssueStatus, JiraClient, get_all_issues
 from jolly_brancher.log import setup_logging
 from jolly_brancher.user_input import parse_args
 
@@ -252,8 +252,13 @@ def main(args=None):
     )
 
     if args.action == "list":
-        project_key = jira_config.get("project")
-        issues = jira.get_all_issues(project_name=project_key)
+        # Get all issues
+        issues = get_all_issues(
+            jira,
+            project_name=jira_config.get("project_key"),
+            scope=(not args.unassigned),
+            repo_path=repo_path
+        )
         for issue in issues:
             print(f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}")
         return 0

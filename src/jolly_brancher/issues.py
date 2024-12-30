@@ -2,6 +2,7 @@
 
 import logging
 import webbrowser
+import os
 from enum import Enum
 
 from jira import JIRA
@@ -69,13 +70,14 @@ class IssueType(Enum):
         return branch_name.split("/")
 
 
-def get_all_issues(jira_client, project_name=None, scope=None):
+def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None):
     """Get all issues from Jira.
 
     Args:
         jira_client: JiraClient instance
         project_name: Optional project key to filter by
         scope: Optional scope filter
+        repo_path: Optional repository path to display
 
     Returns:
         List of Jira issues
@@ -108,12 +110,14 @@ def get_all_issues(jira_client, project_name=None, scope=None):
     if order_by:
         condition_string = condition_string + f" order by {order_by}"
 
-    # Print query as a heading
+    # Print repository and query info
+    if repo_path:
+        print(f"\nRepository: {os.path.abspath(repo_path)}")
     print("\nActive Query:")
     print(condition_string + "\n")
 
     while True:
-        chunk = jira_client.search_issues(
+        chunk = jira_client._JIRA.search_issues(
             condition_string,
             startAt=i,
             maxResults=chunk_size,
