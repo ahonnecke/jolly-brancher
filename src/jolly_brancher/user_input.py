@@ -90,8 +90,8 @@ def create_parser():
 
     parser.add_argument(
         "--type",
-        help="Type of ticket to create (default: BUG)",
-        default="BUG",
+        help="Type of ticket to create (default: Bug)",
+        default="Bug",
     )
 
     parser.add_argument(
@@ -136,6 +136,19 @@ def create_parser():
         help="Automatically answer yes to all prompts",
         action="store_true",
         default=False,
+    )
+
+    # Create a mutually exclusive group for assignee filters
+    assignee_group = parser.add_mutually_exclusive_group()
+    assignee_group.add_argument(
+        "--current-user",
+        action="store_true",
+        help="Show only tickets assigned to current user",
+    )
+    assignee_group.add_argument(
+        "--no-assignee",
+        action="store_true",
+        help="Show only unassigned tickets",
     )
 
     return parser

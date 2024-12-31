@@ -253,11 +253,11 @@ def main(args=None):
 
     if args.action == "list":
         # Get all issues
-        issues = get_all_issues(
-            jira,
-            project_name=jira_config.get("project_key"),
-            scope=(not args.unassigned),
-            repo_path=repo_path
+        issues = jira.get_all_issues(
+            project_name=jira_config.get("project"),
+            repo_path=repo_path,
+            current_user=args.current_user,
+            no_assignee=args.no_assignee
         )
         for issue in issues:
             print(f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}")

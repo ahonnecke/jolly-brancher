@@ -70,14 +70,16 @@ class IssueType(Enum):
         return branch_name.split("/")
 
 
-def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None):
+def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None, current_user=False, no_assignee=False):
     """Get all issues from Jira.
 
     Args:
-        jira_client: JiraClient instance
+        jira_client: JIRA client instance
         project_name: Optional project key to filter by
         scope: Optional scope filter
         repo_path: Optional repository path to display
+        current_user: If True, show only tickets assigned to current user
+        no_assignee: If True, show only unassigned tickets
 
     Returns:
         List of Jira issues
@@ -90,44 +92,48 @@ def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None):
         [f"'{str(x.value)}'" for x in IssueStatus.selectable_statuses()]
     )
 
-    # Include both assigned to me and unassigned tickets
+    # Handle assignee filtering
+    if current_user:
+        assignee_condition = "assignee = currentUser()"
+    elif no_assignee:
+        assignee_condition = "assignee is EMPTY"
+    else:
+        # If neither flag is set, don't filter by assignee at all
+        assignee_condition = None
+
+    # Build conditions list
     conditions = [
-        f"(assignee = currentUser() OR assignee is EMPTY)",
         f"status in ({status_filter})",
-        "created >= -5w",  # Only show tickets created in the last 2 weeks
+        "created >= -5w",  # Only show tickets created in the last 5 weeks
     ]
 
-    # Filter by project if specified
-    if project_name:
-        conditions.append(f"project = '{project_name}'")
-    else:
-        _logger.warning(
-            "No project key specified in config, showing tickets from all projects"
-        )
+    # Only add assignee condition if it's set
+    if assignee_condition:
+        conditions.append(assignee_condition)
 
-    condition_string = " and ".join(conditions)
-    order_by = "created DESC"
-    if order_by:
-        condition_string = condition_string + f" order by {order_by}"
+    if project_name:
+        conditions.append(f"project = {project_name}")
+
+    jql = " AND ".join(conditions)
+    _logger.debug("JQL query: %s", jql)
 
     # Print repository and query info
     if repo_path:
-        print(f"\nRepository: {os.path.abspath(repo_path)}")
+        print(f"Repository: {repo_path}")
     print("\nActive Query:")
-    print(condition_string + "\n")
+    print(jql + "\n")
 
     while True:
-        chunk = jira_client._JIRA.search_issues(
-            condition_string,
+        chunk = jira_client.search_issues(
+            jql,
             startAt=i,
             maxResults=chunk_size,
+            fields="summary,status,assignee",
         )
         if not chunk.iterable:
             break
-
+        issues.extend(chunk)
         i += chunk_size
-        issues += chunk.iterable
-
         if i >= chunk.total:
             break
 
@@ -158,8 +164,22 @@ class JiraClient:
         """Get a single issue by key."""
         return get_issue(self._JIRA, issue_key)
 
-    def get_all_issues(self, project_name=None):
-        return get_all_issues(self._JIRA, project_name=project_name, scope=self.scope)
+    def get_all_issues(self, project_name=None, current_user=False, no_assignee=False, repo_path=None):
+        """Get all issues from Jira.
+        
+        Args:
+            project_name: Optional project key to filter by
+            current_user: If True, show only tickets assigned to current user
+            no_assignee: If True, show only unassigned tickets
+            repo_path: Optional repository path to display
+        """
+        return get_all_issues(
+            jira_client=self._JIRA,
+            project_name=project_name,
+            repo_path=repo_path,
+            current_user=current_user,
+            no_assignee=no_assignee
+        )
 
     def issue(self, ticket):
         return self._JIRA.issue(ticket)

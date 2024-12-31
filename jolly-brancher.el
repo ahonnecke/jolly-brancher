@@ -112,7 +112,10 @@
 (let ((map jolly-brancher-tickets-mode-map))
   (define-key map (kbd "RET") #'jolly-brancher-start-ticket-at-point)
   (define-key map "g" #'jolly-brancher-refresh-tickets)
-  (define-key map "q" #'quit-window))
+  (define-key map "q" #'quit-window)
+  (define-key map "m" #'jolly-brancher-list-my-tickets)
+  (define-key map "u" #'jolly-brancher-list-unassigned-tickets)
+  (define-key map "a" #'jolly-brancher-list-all-tickets))  ; Use dedicated function for all tickets
 
 (defun jolly-brancher--format-command (repo-path action &rest args)
   "Format a jolly-brancher command with REPO-PATH, ACTION and ARGS."
@@ -121,11 +124,8 @@
     (when repo-path
       (setq cmd-args (append cmd-args (list "--repo" repo-path))))
     (setq cmd-args (append cmd-args (list action)))
-    (dolist (arg-pair args)
-      (message "DEBUG: Processing arg pair: %S" arg-pair)
-      (when (and (consp arg-pair) (car arg-pair) (cdr arg-pair))
-        (message "DEBUG: Adding to cmd-args: %S %S" (car arg-pair) (cdr arg-pair))
-        (setq cmd-args (append cmd-args (list (car arg-pair) (cdr arg-pair))))))
+    (when args
+      (setq cmd-args (append cmd-args (car args))))
     (message "DEBUG: Final cmd-args before quoting: %S" cmd-args)
     (let ((final-cmd (string-join (mapcar #'shell-quote-argument cmd-args) " ")))
       (message "DEBUG: Final command: %S" final-cmd)
@@ -146,18 +146,20 @@ Returns nil if not in a Git repository."
 
 (defun jolly-brancher--display-tickets (command repo-path)
   "Run COMMAND and display results in a tickets buffer with REPO-PATH."
-  (let ((buf (get-buffer-create "*Jolly Brancher Tickets*")))
+  (let ((buf (get-buffer-create "*jolly-brancher-tickets*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
-        (unless (eq major-mode 'jolly-brancher-tickets-mode)
-          (jolly-brancher-tickets-mode)  ; Set mode only if not already set
-          (setq-local jolly-brancher--current-repo repo-path)
-          (setq-local jolly-brancher--list-command command)
-          (setq-local jolly-brancher--list-repo-path repo-path))
         (erase-buffer)
+        (jolly-brancher-tickets-mode)
+        (setq-local jolly-brancher--list-command command)
+        (setq-local jolly-brancher--list-repo-path repo-path)
+        (setq-local jolly-brancher--current-repo repo-path)
         (insert "Jolly Brancher Tickets\n\n")
         (insert "Press RET to start a branch.\n")
-        (insert "Press 'g' to refresh the list.\n\n")
+        (insert "Press 'g' to refresh the list.\n")
+        (insert "Press 'm' for my tickets.\n")
+        (insert "Press 'u' for unassigned tickets.\n")
+        (insert "Press 'a' for all tickets.\n\n")
         (shell-command command t)  ; Insert into current buffer
         (goto-char (point-min))))
     (pop-to-buffer buf '((display-buffer-reuse-window display-buffer-same-window)))))
@@ -169,35 +171,61 @@ Returns nil if not in a Git repository."
     (when (looking-at "^\\([A-Z]+-[0-9]+\\)")
       (match-string-no-properties 1))))
 
-(defun jolly-brancher-list-tickets ()
-  "List tickets for the current repository."
-  (interactive)
+(defun jolly-brancher-list-tickets (&optional current-user no-assignee)
+  "List tickets for the current repository.
+If CURRENT-USER is non-nil, show only tickets assigned to current user.
+If NO-ASSIGNEE is non-nil, show only unassigned tickets.
+If neither is set, show all tickets (no filtering)."
+  (interactive (list nil nil))  ; When called interactively, pass nil for both args
   (if-let ((repo-path (jolly-brancher--get-repo-root)))
-      (let ((cmd (jolly-brancher--format-command repo-path "list")))
+      (let* ((args nil)
+             (cmd (progn
+                   (cond
+                    (current-user (push "--current-user" args))
+                    (no-assignee (push "--no-assignee" args)))
+                   (jolly-brancher--format-command repo-path "list" (nreverse args)))))
         (message "Running command: %s" cmd)
         (jolly-brancher--display-tickets cmd repo-path))
     (message "Not in a git repository")))
 
-(defun jolly-brancher-list-open-tickets ()
-  "List open tickets for the current repository."
+(defun jolly-brancher-list-my-tickets ()
+  "List tickets assigned to current user."
   (interactive)
-  (let ((cmd (jolly-brancher--format-command nil "open-tickets")))
-    (message "Running command: %s" cmd)
-    (jolly-brancher--display-tickets cmd nil)))
+  (jolly-brancher-list-tickets t nil))
+
+(defun jolly-brancher-list-unassigned-tickets ()
+  "List unassigned tickets."
+  (interactive)
+  (jolly-brancher-list-tickets nil t))
+
+(defun jolly-brancher-list-all-tickets ()
+  "List all tickets without any filtering."
+  (interactive)
+  (if-let ((repo-path (jolly-brancher--get-repo-root)))
+      (let ((cmd (jolly-brancher--format-command repo-path "list" nil)))
+        (message "Running command: %s" cmd)
+        (jolly-brancher--display-tickets cmd repo-path))
+    (message "Not in a git repository")))
+
+;; Make list-tickets default to showing my tickets for the menu and global keybinding
+(defun jolly-brancher-mode-list-tickets ()
+  "Default list tickets command - shows my tickets."
+  (interactive)
+  (jolly-brancher-list-my-tickets))
 
 (defun jolly-brancher-start-ticket-at-point ()
   "Start a branch for the ticket at point."
   (interactive)
   (when-let* ((ticket-id (jolly-brancher--get-ticket-at-point))
               (repo-path (buffer-local-value 'jolly-brancher--current-repo (current-buffer))))
-    (let ((cmd (jolly-brancher--format-command repo-path "start" (cons "--ticket" ticket-id))))
+    (let ((cmd (jolly-brancher--format-command repo-path "start" (list "--ticket" ticket-id))))
       (message "Starting branch for ticket %s in %s" ticket-id repo-path)
       (shell-command cmd))))
 
 (defun jolly-brancher-start-ticket (ticket-key)
   "Start work on TICKET-KEY."
   (interactive "sTicket key: ")
-  (let ((cmd (jolly-brancher--format-command nil "start" (cons "--ticket" ticket-key))))
+  (let ((cmd (jolly-brancher--format-command nil "start" (list "--ticket" ticket-key))))
     (message "Running command: %s" cmd)
     (shell-command cmd)))
 
@@ -226,7 +254,7 @@ Wraps code blocks in triple backticks and preserves newlines."
 (transient-define-prefix jolly-brancher-menu ()
   "Show jolly-brancher menu."
   ["Actions"
-   ("l" "List tickets" jolly-brancher-list-tickets)
+   ("l" "List tickets" jolly-brancher-mode-list-tickets)
    ("o" "List open tickets" jolly-brancher-list-open-tickets)
    ("s" "Start branch" jolly-brancher-start-ticket)
    ("e" "End branch" jolly-brancher-end-branch)
@@ -245,20 +273,22 @@ If INITIAL-DESCRIPTION is provided or region is active, use it as the default de
                                      (region-beginning)
                                      (region-end)))))
          (title (read-string "Ticket title: ")
-         (description (read-string "Ticket description: "
-                                   (when default-description
-                                     (jolly-brancher--format-description default-description))))
-         (type (completing-read "Issue type: " jolly-brancher-issue-types
-                                nil t nil nil "Bug")))
-    (message "DEBUG: Creating ticket with title: %S description: %S type: %S" title description type)
-    (let ((cmd (jolly-brancher--format-command
-                nil
-                "create-ticket"
-                (cons "--title" title)
-                (cons "--description" description)
-                (cons "--type" type))))
-      (message "DEBUG: Final command string: %S" cmd)
-      (shell-command cmd))))
+                (description (read-string "Ticket description: "
+                                          (when default-description
+                                            (jolly-brancher--format-description default-description))))
+                (type (completing-read "Ticket type: "
+                                       (list "Bug" "Task" "Story" "Epic")
+                                       nil t nil nil "Bug")))
+         (message "DEBUG: Creating ticket with title: %S description: %S type: %S" title description type)
+         (let ((cmd (jolly-brancher--format-command
+                     nil
+                     "create-ticket"
+                     (list
+                      "--title" title
+                      "--description" description
+                      "--type" type))))
+           (message "Running command: %s" cmd)
+           (shell-command cmd)))))
 
 ;;;###autoload
 (define-minor-mode jolly-brancher-mode
@@ -266,7 +296,7 @@ If INITIAL-DESCRIPTION is provided or region is active, use it as the default de
   :lighter " JB"
   :keymap (let ((map (make-sparse-keymap)))
             (define-key map (kbd "C-c j j") 'jolly-brancher-menu)
-            (define-key map (kbd "C-c j l") 'jolly-brancher-list-tickets)
+            (define-key map (kbd "C-c j l") 'jolly-brancher-mode-list-tickets)
             (define-key map (kbd "C-c j o") 'jolly-brancher-list-open-tickets)
             (define-key map (kbd "C-c j s") 'jolly-brancher-start-ticket)
             (define-key map (kbd "C-c j e") 'jolly-brancher-end-branch)
