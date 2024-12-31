@@ -70,7 +70,15 @@ class IssueType(Enum):
         return branch_name.split("/")
 
 
-def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None, current_user=False, no_assignee=False):
+def get_all_issues(
+    jira_client,
+    project_name=None,
+    scope=None,
+    repo_path=None,
+    current_user=False,
+    no_assignee=False,
+    created_within="5w",
+):
     """Get all issues from Jira.
 
     Args:
@@ -80,6 +88,7 @@ def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None, c
         repo_path: Optional repository path to display
         current_user: If True, show only tickets assigned to current user
         no_assignee: If True, show only unassigned tickets
+        created_within: Time period for created filter (e.g. "5w" for 5 weeks, "1M" for 1 month)
 
     Returns:
         List of Jira issues
@@ -104,10 +113,25 @@ def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None, c
         assignee_condition = None
         assignee_display = "All Tickets"
 
+    # Format created display text
+    created_display = created_within
+    if created_within.endswith("w"):
+        weeks = created_within[:-1]
+        created_display = f"Last {weeks} weeks"
+    elif created_within.endswith("M"):
+        months = created_within[:-1]
+        created_display = f"Last {months} months"
+    elif created_within.endswith("d"):
+        days = created_within[:-1]
+        created_display = f"Last {days} days"
+    elif created_within.endswith("y"):
+        years = created_within[:-1]
+        created_display = f"Last {years} years"
+
     # Build conditions list
     conditions = [
         f"status in ({status_filter})",
-        "created >= -5w",  # Only show tickets created in the last 5 weeks
+        f"created >= -{created_within}",
     ]
 
     # Only add assignee condition if it's set
@@ -123,13 +147,12 @@ def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None, c
     # Print repository and filter info
     if repo_path:
         print(f"Repository: {repo_path}")
-    print("\nFilter Settings:")
     print(f"Status: {status_display}")
-    print(f"Created: Last 5 weeks")
+    print(f"Created: {created_display}")
     if project_name:
         print(f"Project: {project_name}")
     print(f"Assignee: {assignee_display}")
-    
+
     # Only show JQL in verbose mode
     if _logger.getEffectiveLevel() <= logging.DEBUG:
         print("\nJQL Query:")
@@ -177,21 +200,25 @@ class JiraClient:
         """Get a single issue by key."""
         return get_issue(self._JIRA, issue_key)
 
-    def get_all_issues(self, project_name=None, current_user=False, no_assignee=False, repo_path=None):
+    def get_all_issues(
+        self, project_name=None, current_user=False, no_assignee=False, repo_path=None, created_within="5w"
+    ):
         """Get all issues from Jira.
-        
+
         Args:
             project_name: Optional project key to filter by
             current_user: If True, show only tickets assigned to current user
             no_assignee: If True, show only unassigned tickets
             repo_path: Optional repository path to display
+            created_within: Time period for created filter (e.g. "5w" for 5 weeks, "1M" for 1 month)
         """
         return get_all_issues(
-            jira_client=self._JIRA,
+            self._JIRA,
             project_name=project_name,
             repo_path=repo_path,
             current_user=current_user,
-            no_assignee=no_assignee
+            no_assignee=no_assignee,
+            created_within=created_within,
         )
 
     def issue(self, ticket):
