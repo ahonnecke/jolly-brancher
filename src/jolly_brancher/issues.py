@@ -88,18 +88,21 @@ def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None, c
     i = 0
     chunk_size = 100
 
-    status_filter = ",".join(
-        [f"'{str(x.value)}'" for x in IssueStatus.selectable_statuses()]
-    )
+    # Get list of statuses for display
+    status_list = [str(x.value) for x in IssueStatus.selectable_statuses()]
+    status_filter = ",".join([f"'{x}'" for x in status_list])
+    status_display = ", ".join(status_list)
 
     # Handle assignee filtering
     if current_user:
         assignee_condition = "assignee = currentUser()"
+        assignee_display = "My Tickets"
     elif no_assignee:
         assignee_condition = "assignee is EMPTY"
+        assignee_display = "Unassigned Tickets"
     else:
-        # If neither flag is set, don't filter by assignee at all
         assignee_condition = None
+        assignee_display = "All Tickets"
 
     # Build conditions list
     conditions = [
@@ -117,11 +120,21 @@ def get_all_issues(jira_client, project_name=None, scope=None, repo_path=None, c
     jql = " AND ".join(conditions)
     _logger.debug("JQL query: %s", jql)
 
-    # Print repository and query info
+    # Print repository and filter info
     if repo_path:
         print(f"Repository: {repo_path}")
-    print("\nActive Query:")
-    print(jql + "\n")
+    print("\nFilter Settings:")
+    print(f"Status: {status_display}")
+    print(f"Created: Last 5 weeks")
+    if project_name:
+        print(f"Project: {project_name}")
+    print(f"Assignee: {assignee_display}")
+    
+    # Only show JQL in verbose mode
+    if _logger.getEffectiveLevel() <= logging.DEBUG:
+        print("\nJQL Query:")
+        print(f"{jql}")
+    print()
 
     while True:
         chunk = jira_client.search_issues(
