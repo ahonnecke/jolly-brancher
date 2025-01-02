@@ -1,9 +1,9 @@
 """Git interface functions."""
 
 import logging
+import re
 import subprocess
 import sys
-import re
 from dataclasses import dataclass
 from typing import List
 
@@ -351,7 +351,7 @@ def get_default_remote(repo_path):
         )
         if result.stdout:
             # Output will be like "origin/main", split to get remote
-            return result.stdout.strip().split('/')[0]
+            return result.stdout.strip().split("/")[0]
     except subprocess.CalledProcessError:
         pass
 
@@ -366,7 +366,7 @@ def get_default_remote(repo_path):
         )
         if result.stdout:
             # Return first remote in the list
-            return result.stdout.strip().split('\n')[0]
+            return result.stdout.strip().split("\n")[0]
     except subprocess.CalledProcessError:
         pass
 
@@ -375,7 +375,7 @@ def get_default_remote(repo_path):
 
 def get_default_branch(repo_path):
     """Get the default branch for a repository."""
-    return 'main'
+    return "main"
 
 
 def get_upstream_repo(repo_path):
@@ -418,13 +418,13 @@ def clean_summary(summary):
     summary = summary.lower()
 
     # Replace special characters (except forward slashes) with dashes
-    summary = re.sub(r'[^a-z0-9/-]+', '-', summary)
+    summary = re.sub(r"[^a-z0-9/-]+", "-", summary)
 
     # Clean up multiple dashes
-    summary = re.sub(r'-+', '-', summary)
+    summary = re.sub(r"-+", "-", summary)
 
     # Remove leading/trailing dashes
-    return summary.strip('-')
+    return summary.strip("-")
 
 
 def create_branch_name(issue):

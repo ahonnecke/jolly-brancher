@@ -41,23 +41,23 @@ def ensure_config_exists():
 
 def find_repo_root(start_path: Optional[str] = None) -> Optional[str]:
     """Find the root directory of the git repository.
-    
+
     Args:
         start_path: Path to start searching from. Defaults to current directory.
-        
+
     Returns:
         str: Path to repository root, or None if not in a git repository
     """
     if start_path is None:
         start_path = os.getcwd()
-        
+
     current = os.path.abspath(start_path)
-    
-    while current != '/':
-        if os.path.exists(os.path.join(current, '.git')):
+
+    while current != "/":
+        if os.path.exists(os.path.join(current, ".git")):
             return current
         current = os.path.dirname(current)
-    
+
     return None
 
 
@@ -66,38 +66,40 @@ def get_local_config() -> Optional[configparser.ConfigParser]:
     repo_root = find_repo_root()
     if not repo_root:
         return None
-        
+
     local_config_path = os.path.join(repo_root, LOCAL_CONFIG_FILENAME)
     if not os.path.exists(local_config_path):
         return None
-        
+
     config = configparser.ConfigParser()
     config.read(local_config_path)
     return config
 
 
-def merge_configs(global_config: configparser.ConfigParser, 
-                 local_config: Optional[configparser.ConfigParser]) -> configparser.ConfigParser:
+def merge_configs(
+    global_config: configparser.ConfigParser,
+    local_config: Optional[configparser.ConfigParser],
+) -> configparser.ConfigParser:
     """Merge global and local configurations, with local taking precedence."""
     if not local_config:
         return global_config
-        
+
     merged = configparser.ConfigParser()
-    
+
     # Copy global config first
     for section in global_config.sections():
         if not merged.has_section(section):
             merged.add_section(section)
         for key, value in global_config.items(section):
             merged[section][key] = value
-            
+
     # Override with local config
     for section in local_config.sections():
         if not merged.has_section(section):
             merged.add_section(section)
         for key, value in local_config.items(section):
             merged[section][key] = value
-            
+
     return merged
 
 
@@ -113,7 +115,7 @@ def get_config():
 
     # Get local config if it exists
     local_config = get_local_config()
-    
+
     # Merge configs, with local taking precedence
     config = merge_configs(global_config, local_config)
 

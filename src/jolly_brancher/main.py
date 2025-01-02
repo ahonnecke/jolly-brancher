@@ -11,14 +11,14 @@ import subprocess
 import sys
 from subprocess import PIPE, Popen
 
-from jolly_brancher.config import get_jira_config, git_pat, github_org
+from jolly_brancher.config import get_jira_config, github_org
 from jolly_brancher.git import (
+    create_branch_name,
     get_default_branch,
     get_default_remote,
-    create_branch_name,
     get_upstream_repo,
 )
-from jolly_brancher.issues import IssueStatus, JiraClient, get_all_issues
+from jolly_brancher.issues import JiraClient
 from jolly_brancher.log import setup_logging
 from jolly_brancher.user_input import parse_args
 
@@ -184,11 +184,11 @@ def create_ticket(jira_client, title, description, issue_type, project_key=None)
     if not project_key:
         config = get_jira_config()
         project_key = config.get("project")
-        
+
     if not project_key:
         _logger.error("No project key specified and none found in config")
         return False
-        
+
     try:
         issue = jira_client.create_ticket(title, description, issue_type, project_key)
         _logger.info("Created ticket %s", issue.key)
@@ -257,7 +257,7 @@ def main(args=None):
             project_name=jira_config.get("project"),
             repo_path=repo_path,
             current_user=args.current_user,
-            no_assignee=args.no_assignee
+            no_assignee=args.no_assignee,
         )
         for issue in issues:
             print(f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}")
@@ -265,13 +265,16 @@ def main(args=None):
 
     if args.action == "end":
         try:
-            branch_name, parent = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=True,
-                cwd=repo_path,
-            ).stdout.strip(), get_default_branch(repo_path)
+            branch_name, parent = (
+                subprocess.run(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    cwd=repo_path,
+                ).stdout.strip(),
+                get_default_branch(repo_path),
+            )
             if not branch_name:
                 print("Error: Not on a feature branch", file=sys.stderr)
                 sys.exit(1)
@@ -319,7 +322,9 @@ def main(args=None):
 
         # Start work on the ticket in Jira
         if not jira.start_work(myissue):
-            _logger.warning("Failed to update Jira ticket status, but continuing with branch creation")
+            _logger.warning(
+                "Failed to update Jira ticket status, but continuing with branch creation"
+            )
 
         # Try to add to current sprint using board_id from config if available
         board_id = jira_config.get("board_id")
@@ -343,7 +348,9 @@ def main(args=None):
                 _logger.info("Switched to existing branch %s", branch_name)
                 return 0
             except subprocess.CalledProcessError:
-                _logger.error("Branch %s exists but could not be checked out", branch_name)
+                _logger.error(
+                    "Branch %s exists but could not be checked out", branch_name
+                )
                 sys.exit(1)
 
         # Get parent branch
@@ -359,14 +366,22 @@ def main(args=None):
             )
         except subprocess.CalledProcessError:
             _logger.error(
-                "Parent branch %s does not exist on remote %s", parent_branch, args.remote
+                "Parent branch %s does not exist on remote %s",
+                parent_branch,
+                args.remote,
             )
             sys.exit(1)
 
         # Create and check out branch
         try:
             subprocess.run(
-                ["git", "checkout", "-b", branch_name, f"{args.remote}/{parent_branch}"],
+                [
+                    "git",
+                    "checkout",
+                    "-b",
+                    branch_name,
+                    f"{args.remote}/{parent_branch}",
+                ],
                 check=True,
                 cwd=repo_path,
             )
@@ -380,7 +395,11 @@ def main(args=None):
         return 0
 
     elif args.action == "create-ticket":
-        jira_client = JiraClient(url=jira_config["base_url"], email=jira_config["auth_email"], token=jira_config["token"])
+        jira_client = JiraClient(
+            url=jira_config["base_url"],
+            email=jira_config["auth_email"],
+            token=jira_config["token"],
+        )
         create_ticket(jira_client, args.title, args.description, args.type)
         return 0
 

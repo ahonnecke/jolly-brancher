@@ -2,7 +2,6 @@
 
 import logging
 import webbrowser
-import os
 from enum import Enum
 
 from jira import JIRA
@@ -201,7 +200,12 @@ class JiraClient:
         return get_issue(self._JIRA, issue_key)
 
     def get_all_issues(
-        self, project_name=None, current_user=False, no_assignee=False, repo_path=None, created_within="5w"
+        self,
+        project_name=None,
+        current_user=False,
+        no_assignee=False,
+        repo_path=None,
+        created_within="5w",
     ):
         """Get all issues from Jira.
 

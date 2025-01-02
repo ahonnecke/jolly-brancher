@@ -276,33 +276,27 @@ Wraps code blocks in triple backticks and preserves newlines."
   (interactive)
   (transient-setup 'jolly-brancher-menu))
 
-(defun jolly-brancher-create-ticket (&optional initial-description)
-  "Create a new bug ticket.
-If INITIAL-DESCRIPTION is provided or region is active, use it as the default description."
+(defun jolly-brancher-create-ticket (&optional default-description)
+  "Create a new ticket with optional DEFAULT-DESCRIPTION."
   (interactive)
-  (message "DEBUG: Starting create-ticket with initial-description: %S" initial-description)
-  (let* ((default-description (or initial-description
-                                  (when (use-region-p)
-                                    (buffer-substring-no-properties
-                                     (region-beginning)
-                                     (region-end)))))
-         (title (read-string "Ticket title: ")
-                (description (read-string "Ticket description: "
-                                          (when default-description
-                                            (jolly-brancher--format-description default-description))))
-                (type (completing-read "Ticket type: "
-                                       (list "Bug" "Task" "Story" "Epic")
-                                       nil t nil nil "Bug")))
-         (message "DEBUG: Creating ticket with title: %S description: %S type: %S" title description type)
-         (let ((cmd (jolly-brancher--format-command
-                     nil
-                     "create-ticket"
-                     (list
-                      "--title" title
-                      "--description" description
-                      "--type" type))))
-           (message "Running command: %s" cmd)
-           (shell-command cmd)))))
+  (message "DEBUG: Starting create-ticket with initial-description: %s" default-description)
+  (let* ((title (read-string "Ticket title: "))
+         (description (read-string "Ticket description: "
+                                 (when default-description
+                                   (jolly-brancher--format-description default-description))))
+         (type (completing-read "Ticket type: "
+                              jolly-brancher-issue-types
+                              nil t nil nil "Bug")))
+    (if-let ((repo-path (jolly-brancher--get-repo-root)))
+        (let ((cmd (jolly-brancher--format-command
+                   repo-path
+                   "create-ticket"
+                   (list "--title" title
+                         "--description" description
+                         "--type" type))))
+          (message "Running command: %s" cmd)
+          (shell-command cmd))
+      (message "Not in a git repository"))))
 
 ;;;###autoload
 (define-minor-mode jolly-brancher-mode

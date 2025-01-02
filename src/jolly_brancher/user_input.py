@@ -164,7 +164,11 @@ def parse_args(args=None):
         parser.error("--ticket is required when action is 'start'")
 
     # Validate that title and description are provided when action is 'create-ticket'
-    if parsed_args.action == "create-ticket" and (not parsed_args.title or not parsed_args.description):
-        parser.error("--title and --description are required when action is 'create-ticket'")
+    if parsed_args.action == "create-ticket" and (
+        not parsed_args.title or not parsed_args.description
+    ):
+        parser.error(
+            "--title and --description are required when action is 'create-ticket'"
+        )
 
     return parsed_args
