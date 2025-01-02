@@ -258,6 +258,7 @@ def main(args=None):
             repo_path=repo_path,
             current_user=args.current_user,
             no_assignee=args.no_assignee,
+            created_within=args.created_within,
         )
         for issue in issues:
             print(f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}")

@@ -54,7 +54,7 @@ def create_parser():
     )
 
     parser.add_argument(
-        "--created-within",
+        "--created_within",
         help="Limit the create time of the ticket",
         type=str,
     )
