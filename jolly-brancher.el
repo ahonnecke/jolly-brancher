@@ -49,6 +49,11 @@
   :type '(repeat string)
   :group 'jolly-brancher)
 
+(defcustom jolly-brancher-jira-url "https://cirrusv2x.atlassian.net"
+  "Base URL for Jira instance."
+  :type 'string
+  :group 'jolly-brancher)
+
 (defvar-local jolly-brancher--current-repo nil
   "The current repository path for jolly-brancher commands.")
 
@@ -115,6 +120,7 @@
   (define-key map "q" #'quit-window)
   (define-key map "m" #'jolly-brancher-list-my-tickets)
   (define-key map "u" #'jolly-brancher-list-unassigned-tickets)
+  (define-key map "v" #'jolly-brancher-open-ticket-in-browser)
   (define-key map "a" #'jolly-brancher-list-all-tickets))  ; Use dedicated function for all tickets
 
 (defun jolly-brancher--format-command (repo-path action &rest args)
@@ -159,7 +165,8 @@ Returns nil if not in a Git repository."
         (insert "Press 'g' to refresh the list.\n")
         (insert "Press 'm' for my tickets.\n")
         (insert "Press 'u' for unassigned tickets.\n")
-        (insert "Press 'a' for all tickets.\n\n")
+        (insert "Press 'a' for all tickets.\n")
+        (insert "Press 'v' to view ticket in browser.\n\n")
         (shell-command command t)  ; Insert into current buffer
         (goto-char (point-min))))
     (pop-to-buffer buf '((display-buffer-reuse-window display-buffer-same-window)))))
@@ -171,12 +178,23 @@ Returns nil if not in a Git repository."
     (when (looking-at "^\\([A-Z]+-[0-9]+\\)")
       (match-string-no-properties 1))))
 
-(defun jolly-brancher-list-tickets (&optional current-user no-assignee)
-  "List tickets for the current repository.
-If CURRENT-USER is non-nil, show only tickets assigned to current user.
-If NO-ASSIGNEE is non-nil, show only unassigned tickets.
-If neither is set, show all tickets (no filtering)."
-  (interactive (list nil nil))  ; When called interactively, pass nil for both args
+(defun jolly-brancher-list-my-tickets ()
+  "List tickets assigned to the current user."
+  (interactive)
+  (jolly-brancher--list-tickets t nil))
+
+(defun jolly-brancher-list-unassigned-tickets ()
+  "List unassigned tickets."
+  (interactive)
+  (jolly-brancher--list-tickets nil t))
+
+(defun jolly-brancher-list-all-tickets ()
+  "List all tickets."
+  (interactive)
+  (jolly-brancher--list-tickets nil nil))
+
+(defun jolly-brancher--list-tickets (current-user no-assignee)
+  "List tickets with CURRENT-USER and NO-ASSIGNEE filters."
   (if-let ((repo-path (jolly-brancher--get-repo-root)))
       (let* ((args nil)
              (cmd (progn
@@ -188,30 +206,18 @@ If neither is set, show all tickets (no filtering)."
         (jolly-brancher--display-tickets cmd repo-path))
     (message "Not in a git repository")))
 
-(defun jolly-brancher-list-my-tickets ()
-  "List tickets assigned to current user."
-  (interactive)
-  (jolly-brancher-list-tickets t nil))
-
-(defun jolly-brancher-list-unassigned-tickets ()
-  "List unassigned tickets."
-  (interactive)
-  (jolly-brancher-list-tickets nil t))
-
-(defun jolly-brancher-list-all-tickets ()
-  "List all tickets without any filtering."
-  (interactive)
-  (if-let ((repo-path (jolly-brancher--get-repo-root)))
-      (let ((cmd (jolly-brancher--format-command repo-path "list" nil)))
-        (message "Running command: %s" cmd)
-        (jolly-brancher--display-tickets cmd repo-path))
-    (message "Not in a git repository")))
-
 ;; Make list-tickets default to showing my tickets for the menu and global keybinding
 (defun jolly-brancher-mode-list-tickets ()
   "Default list tickets command - shows my tickets."
   (interactive)
   (jolly-brancher-list-my-tickets))
+
+(defun jolly-brancher-open-ticket-in-browser ()
+  "Open the Jira ticket at point in a web browser."
+  (interactive)
+  (if-let ((ticket (jolly-brancher--get-ticket-at-point)))
+      (browse-url (concat jolly-brancher-jira-url "/browse/" ticket))
+    (message "No ticket found at point")))
 
 (defun jolly-brancher-start-ticket-at-point ()
   "Start a branch for the ticket at point."
