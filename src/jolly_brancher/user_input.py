@@ -54,6 +54,12 @@ def create_parser():
     )
 
     parser.add_argument(
+        "--created-within",
+        help="Limit the create time of the ticket",
+        type=str,
+    )
+
+    parser.add_argument(
         "--repo",
         help="Path to the git repository (default: current directory)",
         default=".",
