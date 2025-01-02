@@ -114,6 +114,18 @@
   (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
   (font-lock-mode 1))
 
+(transient-define-prefix jolly-brancher-tickets-menu ()
+  "Show menu for actions in the tickets buffer."
+  ["Actions"
+   ("RET" "Start branch for ticket" jolly-brancher-start-ticket-at-point)
+   ("v" "View ticket in browser" jolly-brancher-open-ticket-in-browser)
+   ("g" "Refresh list" jolly-brancher-refresh-tickets)
+   ("q" "Quit window" quit-window)]
+  ["Filter tickets"
+   ("m" "Show my tickets" jolly-brancher-list-my-tickets)
+   ("u" "Show unassigned tickets" jolly-brancher-list-unassigned-tickets)
+   ("a" "Show all tickets" jolly-brancher-list-all-tickets)])
+
 (let ((map jolly-brancher-tickets-mode-map))
   (define-key map (kbd "RET") #'jolly-brancher-start-ticket-at-point)
   (define-key map "g" #'jolly-brancher-refresh-tickets)
@@ -121,7 +133,8 @@
   (define-key map "m" #'jolly-brancher-list-my-tickets)
   (define-key map "u" #'jolly-brancher-list-unassigned-tickets)
   (define-key map "v" #'jolly-brancher-open-ticket-in-browser)
-  (define-key map "a" #'jolly-brancher-list-all-tickets))  ; Use dedicated function for all tickets
+  (define-key map "a" #'jolly-brancher-list-all-tickets)
+  (define-key map "?" #'jolly-brancher-tickets-menu))
 
 (defun jolly-brancher--format-command (repo-path action &rest args)
   "Format a jolly-brancher command with REPO-PATH, ACTION and ARGS."
@@ -160,14 +173,9 @@ Returns nil if not in a Git repository."
         (setq-local jolly-brancher--list-command command)
         (setq-local jolly-brancher--list-repo-path repo-path)
         (setq-local jolly-brancher--current-repo repo-path)
-        (insert "Jolly Brancher Tickets\n\n")
-        (insert "Press RET to start a branch.\n")
-        (insert "Press 'g' to refresh the list.\n")
-        (insert "Press 'm' for my tickets.\n")
-        (insert "Press 'u' for unassigned tickets.\n")
-        (insert "Press 'a' for all tickets.\n")
-        (insert "Press 'v' to view ticket in browser.\n\n")
-        (shell-command command t)  ; Insert into current buffer
+        (insert (propertize "Jolly Brancher Tickets\n\n" 'face 'bold))
+        (insert "Press ? to show available commands\n\n")
+        (shell-command command t)
         (goto-char (point-min))))
     (pop-to-buffer buf '((display-buffer-reuse-window display-buffer-same-window)))))
 
