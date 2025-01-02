@@ -186,35 +186,41 @@ Returns nil if not in a Git repository."
     (when (looking-at "^\\([A-Z]+-[0-9]+\\)")
       (match-string-no-properties 1))))
 
-(defun jolly-brancher-list-my-tickets ()
-  "List tickets assigned to the current user."
-  (interactive)
-  (jolly-brancher--list-tickets t nil))
-
-(defun jolly-brancher-list-unassigned-tickets ()
-  "List unassigned tickets."
-  (interactive)
-  (jolly-brancher--list-tickets nil t))
-
-(defun jolly-brancher-list-all-tickets ()
-  "List all tickets."
-  (interactive)
-  (jolly-brancher--list-tickets nil nil))
-
-(defun jolly-brancher--list-tickets (current-user no-assignee)
-  "List tickets with CURRENT-USER and NO-ASSIGNEE filters."
+(defun jolly-brancher--list-tickets (current-user no-assignee &optional created-within)
+  "List tickets with CURRENT-USER and NO-ASSIGNEE filters.
+Optional CREATED-WITHIN specifies time window for created date."
   (if-let ((repo-path (jolly-brancher--get-repo-root)))
       (let* ((args nil)
              (cmd (progn
-                   (cond
-                    (current-user (push "--current-user" args))
-                    (no-assignee (push "--no-assignee" args)))
-                   (jolly-brancher--format-command repo-path "list" (nreverse args)))))
+                    (when created-within
+                      (push (concat "--created-within=" created-within) args))
+                    (cond
+                     (current-user (push "--current-user" args))
+                     (no-assignee (push "--no-assignee" args)))
+                    (jolly-brancher--format-command repo-path "list" (nreverse args)))))
         (message "Running command: %s" cmd)
         (jolly-brancher--display-tickets cmd repo-path))
     (message "Not in a git repository")))
 
-;; Make list-tickets default to showing my tickets for the menu and global keybinding
+;;;###autoload
+(defun jolly-brancher-list-my-tickets ()
+  "List tickets assigned to the current user."
+  (interactive)
+  (jolly-brancher--list-tickets t nil nil))
+
+;;;###autoload
+(defun jolly-brancher-list-unassigned-tickets ()
+  "List unassigned tickets."
+  (interactive)
+  (jolly-brancher--list-tickets nil t "5w"))
+
+;;;###autoload
+(defun jolly-brancher-list-all-tickets ()
+  "List all tickets."
+  (interactive)
+  (jolly-brancher--list-tickets nil nil "5w"))
+
+;;;###autoload
 (defun jolly-brancher-mode-list-tickets ()
   "Default list tickets command - shows my tickets."
   (interactive)
@@ -282,18 +288,18 @@ Wraps code blocks in triple backticks and preserves newlines."
   (message "DEBUG: Starting create-ticket with initial-description: %s" default-description)
   (let* ((title (read-string "Ticket title: "))
          (description (read-string "Ticket description: "
-                                 (when default-description
-                                   (jolly-brancher--format-description default-description))))
+                                   (when default-description
+                                     (jolly-brancher--format-description default-description))))
          (type (completing-read "Ticket type: "
-                              jolly-brancher-issue-types
-                              nil t nil nil "Bug")))
+                                jolly-brancher-issue-types
+                                nil t nil nil "Bug")))
     (if-let ((repo-path (jolly-brancher--get-repo-root)))
         (let ((cmd (jolly-brancher--format-command
-                   repo-path
-                   "create-ticket"
-                   (list "--title" title
-                         "--description" description
-                         "--type" type))))
+                    repo-path
+                    "create-ticket"
+                    (list "--title" title
+                          "--description" description
+                          "--type" type))))
           (message "Running command: %s" cmd)
           (shell-command cmd))
       (message "Not in a git repository"))))

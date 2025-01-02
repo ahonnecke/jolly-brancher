@@ -76,7 +76,7 @@ def get_all_issues(
     repo_path=None,
     current_user=False,
     no_assignee=False,
-    created_within="5w",
+    created_within=False,
 ):
     """Get all issues from Jira.
 
@@ -114,7 +114,9 @@ def get_all_issues(
 
     # Format created display text
     created_display = created_within
-    if created_within.endswith("w"):
+    if not created_within:
+        created_display = "All time"
+    elif created_within.endswith("w"):
         weeks = created_within[:-1]
         created_display = f"Last {weeks} weeks"
     elif created_within.endswith("M"):
@@ -128,10 +130,11 @@ def get_all_issues(
         created_display = f"Last {years} years"
 
     # Build conditions list
-    conditions = [
-        f"status in ({status_filter})",
-        f"created >= -{created_within}",
-    ]
+    conditions = [f"status in ({status_filter})"]
+
+    # Add created filter if specified
+    if created_within:
+        conditions.append(f"created >= -{created_within}")
 
     # Only add assignee condition if it's set
     if assignee_condition:
@@ -147,7 +150,8 @@ def get_all_issues(
     if repo_path:
         print(f"Repository: {repo_path}")
     print(f"Status: {status_display}")
-    print(f"Created: {created_display}")
+    if created_within:
+        print(f"Created: {created_display}")
     if project_name:
         print(f"Project: {project_name}")
     print(f"Assignee: {assignee_display}")
@@ -205,7 +209,7 @@ class JiraClient:
         current_user=False,
         no_assignee=False,
         repo_path=None,
-        created_within="5w",
+        created_within=None,
     ):
         """Get all issues from Jira.
 
