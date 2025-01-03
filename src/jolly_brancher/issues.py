@@ -20,6 +20,7 @@ class IssueStatus(Enum):
     IN_PROGRESS = "In Progress"
     BACKLOG = "Backlog"
     NEW = "New"
+    IN_REVIEW = "In Review"
 
     @classmethod
     def selectable_statuses(cls):
@@ -29,6 +30,7 @@ class IssueStatus(Enum):
             cls.IN_PROGRESS,
             cls.BACKLOG,
             cls.NEW,
+            cls.IN_REVIEW,
         ]
 
 

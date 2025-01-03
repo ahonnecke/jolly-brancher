@@ -7,6 +7,7 @@ Main entrypoint for the jolly_brancher library.
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from subprocess import PIPE, Popen
@@ -303,6 +304,76 @@ def main(args=None):
             print(f"Error creating PR: {str(e)}", file=sys.stderr)
             sys.exit(1)
 
+    if args.action == "end-ticket":
+        try:
+            # Get current branch name
+            branch_name = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=repo_path,
+            ).stdout.strip()
+
+            if not branch_name:
+                print("Error: Not on a feature branch", file=sys.stderr)
+                sys.exit(1)
+
+            # Extract ticket key from branch name (assuming format contains ticket key)
+            ticket_match = re.search(r"([A-Z]+-\d+)", branch_name)
+            if ticket_match:
+                ticket_key = ticket_match.group(1)
+                # Remove the ticket from open tickets
+                remove_open_ticket(ticket_key)
+
+            # Get repository name for PR creation
+            repo_name = (
+                get_upstream_repo(repo_path)[0].split("/")[-1].replace(".git", "")
+            )
+
+            # Create pull request
+            subprocess.run(
+                [
+                    "gh",
+                    "pr",
+                    "create",
+                    "--repo",
+                    f"{github_org()}/{repo_name}",
+                    "--title",
+                    f"{branch_name}",
+                    "--body",
+                    f"Closes {ticket_key if ticket_match else branch_name}",
+                ],
+                check=True,
+                cwd=repo_path,
+            )
+            print(f"Successfully created PR for {branch_name}")
+            sys.exit(0)
+        except subprocess.CalledProcessError as e:
+            print(f"Error creating pull request: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    if args.action == "set-status":
+        if not args.ticket:
+            _logger.error("No ticket specified")
+            sys.exit(1)
+        if not args.status:
+            _logger.error("No status specified")
+            sys.exit(1)
+
+        try:
+            issue = jira.get_issue(args.ticket)
+            if not issue:
+                _logger.error("Ticket not found: %s", args.ticket)
+                sys.exit(1)
+
+            jira.transition_issue(issue, args.status)
+            print(f"Successfully updated {args.ticket} status to {args.status}")
+            sys.exit(0)
+        except Exception as e:
+            _logger.error("Error updating ticket status: %s", str(e))
+            sys.exit(1)
+
     if args.action == "start":
         if not args.ticket:
             _logger.error("No ticket specified")
@@ -405,7 +476,7 @@ def main(args=None):
         return 0
 
     print(
-        "Error: Invalid action. Must be one of: list, start, end, open-tickets, create-ticket",
+        "Error: Invalid action. Must be one of: list, start, end, open-tickets, create-ticket, end-ticket, set-status",
         file=sys.stderr,
     )
     sys.exit(1)

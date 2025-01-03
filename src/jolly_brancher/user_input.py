@@ -49,8 +49,16 @@ def create_parser():
     # Required arguments
     parser.add_argument(
         "action",
-        choices=["list", "start", "end", "open-tickets", "create-ticket"],
-        help="Action to perform: list (show tickets), start (new branch), end (create PR), open-tickets (show active tickets), or create-ticket (create new ticket)",
+        choices=[
+            "list",
+            "start",
+            "end",
+            "open-tickets",
+            "create-ticket",
+            "end-ticket",
+            "set-status",
+        ],
+        help="Action to perform: list (show tickets), start (new branch), end (create PR), open-tickets (show active tickets), create-ticket (create new ticket), end-ticket (end ticket and create PR), or set-status (change ticket status)",
     )
 
     parser.add_argument(
@@ -98,6 +106,12 @@ def create_parser():
         "--type",
         help="Type of ticket to create (default: Bug)",
         default="Bug",
+    )
+
+    parser.add_argument(
+        "--status",
+        help="Status to set the ticket to (for set-status action)",
+        choices=["To Do", "In Progress", "Backlog", "New", "In Review"],
     )
 
     parser.add_argument(
