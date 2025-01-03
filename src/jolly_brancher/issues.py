@@ -222,14 +222,24 @@ class JiraClient:
             repo_path: Optional repository path to display
             created_within: Time period for created filter (e.g. "5w" for 5 weeks, "1M" for 1 month)
         """
-        return get_all_issues(
-            self._JIRA,
-            project_name=project_name,
-            repo_path=repo_path,
-            current_user=current_user,
-            no_assignee=no_assignee,
-            created_within=created_within,
-        )
+        jql_parts = []
+
+        if project_name:
+            jql_parts.append(f"project = {project_name}")
+
+        if current_user:
+            jql_parts.append(f"assignee = currentUser()")
+            jql_parts.append(f'status in ("{IssueStatus.TODO.value}", "{IssueStatus.IN_PROGRESS.value}")')
+        elif no_assignee:
+            jql_parts.append("assignee is EMPTY")
+
+        if created_within:
+            jql_parts.append(f"created >= -{created_within}")
+
+        jql = " AND ".join(jql_parts) if jql_parts else ""
+
+        _logger.debug("JQL query: %s", jql)
+        return self._JIRA.search_issues(jql, maxResults=100)
 
     def issue(self, ticket):
         return self._JIRA.issue(ticket)

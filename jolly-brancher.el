@@ -165,6 +165,10 @@ Returns nil if not in a Git repository."
               (root (project-root project)))
     (expand-file-name root)))
 
+(defun jolly-brancher--get-repo-name (repo-path)
+  "Get the repository name from REPO-PATH."
+  (file-name-nondirectory (directory-file-name repo-path)))
+
 (defun jolly-brancher-refresh-tickets ()
   "Manually refresh the tickets list."
   (interactive)
@@ -181,7 +185,7 @@ Returns nil if not in a Git repository."
         (setq-local jolly-brancher--list-command command)
         (setq-local jolly-brancher--list-repo-path repo-path)
         (setq-local jolly-brancher--current-repo repo-path)
-        (insert (propertize "Jolly Brancher Tickets\n\n" 'face 'bold))
+        (insert (propertize (format "%s Tickets\n\n" (jolly-brancher--get-repo-name repo-path)) 'face 'bold))
         (insert "Press ? to show available commands\n\n")
         (shell-command command t)
         (goto-char (point-min))))
