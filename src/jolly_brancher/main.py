@@ -12,7 +12,14 @@ import subprocess
 import sys
 from subprocess import PIPE, Popen
 
-from jolly_brancher.config import get_jira_config, github_org
+from jolly_brancher.config import (
+    get_jira_config,
+    github_org,
+    git_pat,
+    get_forge_root,
+    CONFIG_FILENAME,
+    get_local_git_pat,
+)
 from jolly_brancher.git import (
     create_branch_name,
     get_default_branch,
@@ -22,6 +29,7 @@ from jolly_brancher.git import (
 from jolly_brancher.issues import JiraClient
 from jolly_brancher.log import setup_logging
 from jolly_brancher.user_input import parse_args
+from github import Github, GithubException
 
 __author__ = "Ashton Von Honnecke"
 __copyright__ = "Ashton Von Honnecke"
@@ -199,6 +207,200 @@ def create_ticket(jira_client, title, description, issue_type, project_key=None)
         return False
 
 
+def list_reviewers(args):
+    """List repository collaborators that can be added as reviewers."""
+    try:
+        # Get git PAT from local config first, fall back to global if not found
+        local_pat = get_local_git_pat(args.repo)
+        if not local_pat:
+            print("Warning: No git_pat found in local .jolly.ini, falling back to global config", file=sys.stderr)
+            local_pat = git_pat()
+            
+        # Skip reviewer fetching for classic tokens (starting with ghp_)
+        if local_pat.startswith("ghp_"):
+            print("\nSkipping reviewer selection - classic GitHub token detected.", file=sys.stderr)
+            print("To add reviewers in the future:", file=sys.stderr)
+            print("1. Go to https://github.com/settings/tokens?type=beta", file=sys.stderr)
+            print("2. Click 'Generate new token'", file=sys.stderr)
+            print("3. Select the repository access for this repo", file=sys.stderr)
+            print("4. Enable these permissions:", file=sys.stderr)
+            print("   - Repository permissions > Collaborators > Read-only", file=sys.stderr)
+            print("   - Repository permissions > Pull requests > Read and write", file=sys.stderr)
+            print(f"5. Add your git_pat to .jolly.ini in the repository root:", file=sys.stderr)
+            print("\n[git]", file=sys.stderr)
+            print("git_pat = your_token_here\n", file=sys.stderr)
+            return None
+            
+        g = Github(local_pat)
+        
+        # Get forge_root from local config
+        forge_root = get_forge_root(args.repo)
+        if not forge_root:
+            print("Error: forge_root not found in local .jolly.ini file", file=sys.stderr)
+            sys.exit(1)
+            
+        repo_name = os.path.basename(args.repo.rstrip('/'))
+        full_repo_name = f"{forge_root}/{repo_name}"
+        
+        try:
+            repo = g.get_repo(full_repo_name)
+            collaborators = list(repo.get_collaborators())
+            return [collab.login for collab in collaborators]
+        except GithubException as err:
+            if err.status == 403 and "forbids access via a personal access token" in str(err.data.get("message", "")):
+                print(f"\nWarning: Cannot fetch collaborators. The organization '{forge_root}' requires a fine-grained personal access token.", file=sys.stderr)
+                return None
+            raise
+    except GithubException as err:
+        _logger.error("Failed to fetch collaborators: %s", err)
+        return None
+
+
+def open_pr(repo_path, git_pat, org, repo, jira_client):
+    g = get_github(git_pat)
+
+    full_name_or_id = f"{org}/{repo}"
+
+    github_repo = g.get_repo(full_name_or_id=full_name_or_id)
+
+    # Skip reviewer selection for classic tokens
+    selected_reviewers = []
+    if not git_pat.startswith("ghp_"):
+        collaborators = list_reviewers({"repo": repo_path})
+        if collaborators:
+            print("\nAvailable reviewers:")
+            for i, collab in enumerate(collaborators, 1):
+                print(f"{i}. {collab}")
+            
+            # Allow multiple reviewer selection
+            while True:
+                selection = input("\nSelect reviewer number (or press Enter to finish): ").strip()
+                if not selection:
+                    break
+                try:
+                    idx = int(selection) - 1
+                    if 0 <= idx < len(collaborators):
+                        reviewer = collaborators[idx]
+                        if reviewer not in selected_reviewers:
+                            selected_reviewers.append(reviewer)
+                            print(f"Added {reviewer} as reviewer")
+                        else:
+                            print(f"{reviewer} is already added as a reviewer")
+                    else:
+                        print("Invalid selection")
+                except ValueError:
+                    print("Please enter a valid number")
+    else:
+        print("\nSkipping reviewer selection - using classic GitHub token.", file=sys.stderr)
+        print("PR will be created without reviewers.", file=sys.stderr)
+
+    tags = get_tags(github_repo)
+    branch_name, parent = fetch_branch_and_parent(repo_path)
+
+    print(f"Fetching {branch_name} branch")
+
+    try:
+        branch = github_repo.get_branch(branch=branch_name)
+        print(f"Fetched branch {branch}")
+    except Exception as e:
+        _logger.exception(e)
+
+    filenames = get_filenames(parent, "upstream", repo_path)
+    commits = get_unmerged_commits(parent, "upstream", repo_path)
+    [x for x in commits if x.is_new and not x.is_merge]
+
+    parts = branch_name.split("/")
+    if len(parts) == 3:
+        _, issue_type, description = parts
+    else:
+        issue_type, description = parts
+
+    broken_description = description.split("-")
+
+    project = broken_description[0]
+    ticket_number = broken_description[1]
+
+    ticket = f"{project}-{ticket_number}"
+
+    print(f"Identified ticket {ticket}")
+
+    myissue = jira_client.issue(ticket)
+
+    if not myissue:
+        print("Unable to find ticket for branch")
+        sys.exit()
+
+    details = []
+
+    short_desc = ""
+    long_desc = myissue.fields.summary
+
+    ticket = str(myissue)
+    issue_type = myissue.fields.issuetype
+
+    tests = 0
+    for filename in filenames:
+        if "test" in str(filename):
+            tests = tests + 1
+
+    short_desc = f"{ticket} - {short_desc}"
+
+    pr_body = body(
+        (short_desc)[:35],
+        long_desc,
+        issue_type,
+        ticket,
+        details=details,
+        tags=tags,
+        unit_passing=True,
+        lint_passing=True,
+        new_tests=tests > 0,
+    )
+
+    try:
+        pr = create_pull(
+            org,
+            branch_name,
+            parent,
+            short_desc,
+            pr_body,
+            github_repo,
+            reviewers=selected_reviewers if selected_reviewers else None,
+        )
+
+        # Set ticket status to "In Review"
+        try:
+            jira_client.transition_issue(myissue, "In Review")
+            print(f"Set {ticket} status to 'In Review'")
+        except Exception as e:
+            print(f"Failed to set {ticket} status to 'In Review': {e}")
+
+        return pr
+    except GithubException as err:
+        if err.status == 403 and "forbids access via a personal access token" in str(err.data.get("message", "")):
+            print("\nWarning: Creating PR without reviewers due to token permissions.", file=sys.stderr)
+            # Try again without reviewers
+            pr = create_pull(
+                org,
+                branch_name,
+                parent,
+                short_desc,
+                pr_body,
+                github_repo,
+                reviewers=None,
+            )
+
+            # Set ticket status to "In Review"
+            try:
+                jira_client.transition_issue(myissue, "In Review")
+                print(f"Set {ticket} status to 'In Review'")
+            except Exception as e:
+                print(f"Failed to set {ticket} status to 'In Review': {e}")
+
+            return pr
+        raise
+
+
 def main(args=None):
     """
     Main entrypoint for the jolly_brancher library.
@@ -279,7 +481,9 @@ def main(args=None):
         )
         for issue in issues:
             is_current = current_ticket and issue.key == current_ticket
-            print(f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}{'  *' if is_current else ''}")
+            print(
+                f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}{'  *' if is_current else ''}"
+            )
         return 0
 
     if args.action == "end":
@@ -316,6 +520,14 @@ def main(args=None):
                 check=True,
                 cwd=repo_path,
             )
+            try:
+                ticket_match = re.search(r"([A-Z]+-\d+)", branch_name)
+                if ticket_match:
+                    ticket_key = ticket_match.group(1)
+                    jira.transition_issue(jira.get_issue(ticket_key), "In Review")
+                    print(f"Set {ticket_key} status to 'In Review'")
+            except Exception as e:
+                print(f"Failed to set ticket status to 'In Review': {e}")
             sys.exit(0)
         except Exception as e:
             print(f"Error creating PR: {str(e)}", file=sys.stderr)
@@ -364,6 +576,11 @@ def main(args=None):
                 check=True,
                 cwd=repo_path,
             )
+            try:
+                jira.transition_issue(jira.get_issue(ticket_key), "In Review")
+                print(f"Set {ticket_key} status to 'In Review'")
+            except Exception as e:
+                print(f"Failed to set {ticket_key} status to 'In Review': {e}")
             print(f"Successfully created PR for {branch_name}")
             sys.exit(0)
         except subprocess.CalledProcessError as e:
@@ -492,8 +709,12 @@ def main(args=None):
         create_ticket(jira_client, args.title, args.description, args.type)
         return 0
 
+    elif args.action == "list-reviewers":
+        list_reviewers(args)
+        return 0
+
     print(
-        "Error: Invalid action. Must be one of: list, start, end, open-tickets, create-ticket, end-ticket, set-status",
+        "Error: Invalid action. Must be one of: list, start, end, open-tickets, create-ticket, end-ticket, set-status, list-reviewers",
         file=sys.stderr,
     )
     sys.exit(1)

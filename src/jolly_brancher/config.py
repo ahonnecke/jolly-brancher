@@ -152,6 +152,36 @@ def git_pat():
         )
 
 
+def get_local_git_pat(repo_path=None):
+    """Get git_pat from local .jolly.ini file.
+    
+    Args:
+        repo_path: Optional path to repository. If not provided, will search from current directory.
+        
+    Returns:
+        str: Git PAT from local config, or None if not found
+    """
+    if repo_path:
+        repo_root = repo_path
+    else:
+        repo_root = find_repo_root()
+    
+    if not repo_root:
+        return None
+        
+    local_config_path = os.path.join(repo_root, LOCAL_CONFIG_FILENAME)
+    if not os.path.exists(local_config_path):
+        return None
+        
+    config = configparser.ConfigParser()
+    config.read(local_config_path)
+    
+    try:
+        return config[GIT_SECTION_NAME]["git_pat"]
+    except (KeyError, configparser.NoSectionError):
+        return None
+
+
 def get_jira_config():
     """Get all required Jira configuration."""
     try:
@@ -186,3 +216,33 @@ def github_org():
         sys.exit(
             "Error: GitHub organization URL not found in config. Add 'forge_root' under [git] section."
         )
+
+
+def get_forge_root(repo_path=None):
+    """Get forge_root from local .jolly.ini file.
+    
+    Args:
+        repo_path: Optional path to repository. If not provided, will search from current directory.
+        
+    Returns:
+        str: Forge root URL from local config, or None if not found
+    """
+    if repo_path:
+        repo_root = repo_path
+    else:
+        repo_root = find_repo_root()
+    
+    if not repo_root:
+        return None
+        
+    local_config_path = os.path.join(repo_root, LOCAL_CONFIG_FILENAME)
+    if not os.path.exists(local_config_path):
+        return None
+        
+    config = configparser.ConfigParser()
+    config.read(local_config_path)
+    
+    try:
+        return config[GIT_SECTION_NAME]["forge_root"]
+    except (KeyError, configparser.NoSectionError):
+        return None

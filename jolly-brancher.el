@@ -289,9 +289,34 @@ Optional CREATED-WITHIN specifies time window for created date."
   "End current branch and create PR."
   (interactive)
   (when (yes-or-no-p "Create PR for current branch? ")
-    (let ((cmd (jolly-brancher--format-command nil "end")))
+    (let* ((repo-path (jolly-brancher--get-repo-root))
+           (reviewers (jolly-brancher--select-reviewers))
+           (reviewer-args (mapcan (lambda (r) (list "--reviewer" r)) reviewers))
+           (cmd (jolly-brancher--format-command repo-path "end" reviewer-args)))
       (message "Running command: %s" cmd)
       (shell-command cmd))))
+
+(defun jolly-brancher--get-reviewers ()
+  "Get list of potential reviewers for PR."
+  (let* ((default-directory (jolly-brancher--get-repo-root))
+         (output (shell-command-to-string
+                  (format "%s list-reviewers --repo %s"
+                          jolly-brancher-command
+                          default-directory))))
+    ;; Only return reviewers if we got actual usernames back
+    ;; Skip if output only contains warning messages (they go to stderr)
+    (when (and (not (string-empty-p output))
+               (not (string-prefix-p "\n" output))  ; Skip if output starts with newline (warning message)
+               (string-match-p "^[[:alnum:]]" output))  ; Must start with alphanumeric (username)
+      (split-string output "\n" t))))
+
+(defun jolly-brancher--select-reviewers ()
+  "Interactively select reviewers from the available list."
+  (let ((reviewers (jolly-brancher--get-reviewers)))
+    (when reviewers  ; Only prompt if we got reviewers back
+      (completing-read-multiple
+       "Select reviewers (comma-separated): "
+       reviewers))))
 
 (defun jolly-brancher--format-description (text)
   "Format TEXT for use as a Jira description.

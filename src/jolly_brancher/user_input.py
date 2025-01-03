@@ -56,6 +56,7 @@ def create_parser():
             "open-tickets",
             "create-ticket",
             "end-ticket",
+            "list-reviewers",
             "set-status",
         ],
         help="Action to perform: list (show tickets), start (new branch), end (create PR), open-tickets (show active tickets), create-ticket (create new ticket), end-ticket (end ticket and create PR), or set-status (change ticket status)",

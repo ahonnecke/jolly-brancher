@@ -65,7 +65,7 @@ def is_repository_dirty(repo_path):
 
 
 def create_pull(
-    org, branch_name, parent_branch, short_desc, pr_body, github_repo
+    org, branch_name, parent_branch, short_desc, pr_body, github_repo, reviewers=None
 ) -> PullRequest:
     # First create a Github instance:
 
@@ -96,13 +96,19 @@ def create_pull(
     print(f"Opening branch from head: '{head}' against base: '{base}'")
 
     try:
-        return github_repo.create_pull(
+        pr = github_repo.create_pull(
             title=short_desc,
             body=pr_body,
             head=head,
             base=base,
             draft=False,
         )
+
+        # Add reviewers if specified
+        if reviewers:
+            pr.create_review_request(reviewers=reviewers)
+
+        return pr
     except GithubException as err:
         first_error = err.data["errors"][0]
         field = first_error.get("field")
@@ -120,13 +126,7 @@ def create_pull(
             print("You already have a PR for that branch... exiting")
             sys.exit(1)
 
-        pr_against_dev()
         return create_pull(org, branch_name, "dev", short_desc, pr_body, github_repo)
-
-
-def pr_against_dev():
-    if not query_yes_no("Do you want to try opening the PR against dev?"):
-        sys.exit(1)
 
 
 def get_github(pat):
@@ -156,6 +156,16 @@ def get_tags(github_repo):
     return [x.login for x in members]
 
 
+def get_collaborators(github_repo):
+    """Get list of repository collaborators."""
+    try:
+        collaborators = list(github_repo.get_collaborators())
+        return [collab.login for collab in collaborators]
+    except GithubException as err:
+        _logger.warning("Failed to fetch collaborators: %s", err)
+        return []
+
+
 # pylint: disable=too-many-locals, too-many-statements
 def open_pr(repo_path, git_pat, org, repo, jira_client):
     g = get_github(git_pat)
@@ -164,8 +174,35 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
 
     github_repo = g.get_repo(full_name_or_id=full_name_or_id)
 
-    tags = get_tags(github_repo)
+    # Get collaborators for reviewer selection
+    collaborators = get_collaborators(github_repo)
+    print("\nAvailable reviewers:")
+    for i, collab in enumerate(collaborators, 1):
+        print(f"{i}. {collab}")
 
+    # Allow multiple reviewer selection
+    selected_reviewers = []
+    while True:
+        selection = input(
+            "\nSelect reviewer number (or press Enter to finish): "
+        ).strip()
+        if not selection:
+            break
+        try:
+            idx = int(selection) - 1
+            if 0 <= idx < len(collaborators):
+                reviewer = collaborators[idx]
+                if reviewer not in selected_reviewers:
+                    selected_reviewers.append(reviewer)
+                    print(f"Added {reviewer} as reviewer")
+                else:
+                    print(f"{reviewer} is already added as a reviewer")
+            else:
+                print("Invalid selection")
+        except ValueError:
+            print("Please enter a valid number")
+
+    tags = get_tags(github_repo)
     branch_name, parent = fetch_branch_and_parent(repo_path)
 
     print(f"Fetching {branch_name} branch")
@@ -182,7 +219,7 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
 
     filenames = get_filenames(parent, "upstream", repo_path)
     commits = get_unmerged_commits(parent, "upstream", repo_path)
-    commits_unique_to_this_branch = [x for x in commits if x.is_new and not x.is_merge]
+    [x for x in commits if x.is_new and not x.is_merge]
 
     parts = branch_name.split("/")
     if len(parts) == 3:
@@ -206,21 +243,8 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
         sys.exit()
 
     details = []
-    if len(commits_unique_to_this_branch) == 1:
-        details.append(commits_unique_to_this_branch[0].body)
-    else:
-        print("Listing commits in this PR, Y to add, n to decline")
-        for commit in commits_unique_to_this_branch:
-            if query_yes_no(commit.body):
-                details.append(commit.body)
 
     short_desc = ""
-    if len(details) == 1:
-        short_desc = details[0]
-    elif len(details) > 1:
-        short_desc = prompt(
-            "Choose the title comment: ", completer=WordCompleter(details)
-        )
     long_desc = myissue.fields.summary
 
     ticket = str(myissue)
@@ -243,21 +267,18 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
         tags=tags,
         unit_passing=True,
         lint_passing=True,
-        # unit_passing=query_yes_no("Are all unit tests passing? "),
-        # lint_passing=query_yes_no("Are all linters passing? "),
         new_tests=tests > 0,
     )
 
-    pr = create_pull(org, branch_name, parent, short_desc, pr_body, github_repo)
-
-    # @TODO post a thing to slack if it's not a draft
-
-    clean_url = urllib.parse.quote_plus(pr.html_url)
-    dirty_url = pr.html_url
-
-    print(f"Not using, {clean_url}, using {dirty_url}")
-
-    webbrowser.open(pr.html_url)
+    create_pull(
+        org,
+        branch_name,
+        parent,
+        short_desc,
+        pr_body,
+        github_repo,
+        reviewers=selected_reviewers,
+    )
 
 
 def fetch_branch_and_parent(repo_path):
