@@ -134,19 +134,6 @@
             (define-key map (kbd "C-c j c") 'jolly-brancher--maybe-create-from-region)
             map))
 
-(define-derived-mode jolly-brancher-tickets-mode tabulated-list-mode "Jolly Brancher"
-  "Major mode for viewing Jira tickets."
-  (setq tabulated-list-format [("Key" 15 t)
-                               ("Status" 15 t)
-                               ("Type" 10 t)
-                               ("Summary" 50 t)
-                               ("Assignee" 20 t)])
-  (setq tabulated-list-padding 2)
-  (setq tabulated-list-sort-key (cons "Key" nil))
-  (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
-  (font-lock-mode 1)
-  (tabulated-list-init-header))
-
 (defvar jolly-brancher-tickets-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") 'jolly-brancher-start-ticket-at-point)
@@ -157,8 +144,36 @@
     (define-key map (kbd "m") 'jolly-brancher-list-my-tickets)
     (define-key map (kbd "u") 'jolly-brancher-list-unassigned-tickets)
     (define-key map (kbd "a") 'jolly-brancher-list-all-tickets)
+    (define-key map (kbd "?") 'jolly-brancher-tickets-menu)
     map)
   "Keymap for `jolly-brancher-tickets-mode'.")
+
+(transient-define-prefix jolly-brancher-tickets-menu ()
+  "Show menu for actions in the tickets buffer."
+  ["Actions"
+   ("RET" "Start branch for ticket" jolly-brancher-start-ticket-at-point)
+   ("v" "View ticket in browser" jolly-brancher-open-ticket-in-browser)
+   ("g" "Refresh list" jolly-brancher-refresh-tickets)
+   ("s" "Change ticket status" jolly-brancher-change-ticket-status)
+   ("q" "Quit window" quit-window)]
+  ["Filter tickets"
+   ("m" "Show my tickets" jolly-brancher-list-my-tickets)
+   ("u" "Show unassigned tickets" jolly-brancher-list-unassigned-tickets)
+   ("a" "Show all tickets" jolly-brancher-list-all-tickets)])
+
+(define-derived-mode jolly-brancher-tickets-mode tabulated-list-mode "Jolly Brancher"
+  "Major mode for viewing Jira tickets."
+  (setq tabulated-list-format [("Key" 15 t)
+                              ("Status" 15 t)
+                              ("Type" 10 t)
+                              ("Summary" 50 t)
+                              ("Assignee" 20 t)])
+  (setq tabulated-list-padding 2)
+  (setq tabulated-list-sort-key (cons "Key" nil))
+  (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
+  (font-lock-mode 1)
+  (use-local-map jolly-brancher-tickets-mode-map)  ; Explicitly set the keymap
+  (tabulated-list-init-header))
 
 (defun jolly-brancher-or-magit ()
   "Switch between Magit, Jolly Brancher, or start Magit based on current mode."
@@ -170,10 +185,17 @@
    ;; In magit mode, switch to jolly-brancher if in a repo
    ((derived-mode-p 'magit-mode)
     (when (jolly-brancher--get-repo-root)
-      (jolly-brancher-list-my-tickets)))
+      (jolly-brancher--switch-to-tickets)))
    ;; In any other mode, just run magit-status
    (t
     (magit-status))))
+
+(defun jolly-brancher--switch-to-tickets ()
+  "Switch to the jolly-brancher tickets buffer if it exists, otherwise create it."
+  (let ((buffer (get-buffer "*jolly-brancher-tickets*")))
+    (if buffer
+        (switch-to-buffer buffer)
+      (jolly-brancher-list-my-tickets))))
 
 ;; Set up key bindings when magit and jolly-brancher are loaded
 (with-eval-after-load 'magit
