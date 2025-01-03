@@ -134,12 +134,20 @@
     map)
   "Keymap for `jolly-brancher-tickets-mode'.")
 
-(define-derived-mode jolly-brancher-tickets-mode special-mode "Jolly-Tickets"
-  "Major mode for Jolly Brancher ticket listing."
-  (setq buffer-read-only t)
-  (setq-local line-move-visual t)
+(define-derived-mode jolly-brancher-tickets-mode tabulated-list-mode "Jolly Brancher"
+  "Major mode for viewing Jira tickets."
+  (setq tabulated-list-format [("Key" 15 t)
+                              ("Status" 15 t)
+                              ("Type" 10 t)
+                              ("Summary" 50 t)
+                              ("Assignee" 20 t)])
+  (setq tabulated-list-padding 2)
+  (setq tabulated-list-sort-key (cons "Key" nil))
+  ;; Set up M-j binding in jolly-brancher mode
+  (define-key jolly-brancher-tickets-mode-map (kbd "M-j") 'toggle-magit-jolly-brancher)
   (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
-  (font-lock-mode 1))
+  (font-lock-mode 1)
+  (tabulated-list-init-header))
 
 (transient-define-prefix jolly-brancher-tickets-menu ()
   "Show menu for actions in the tickets buffer."
@@ -153,6 +161,23 @@
    ("m" "Show my tickets" jolly-brancher-list-my-tickets)
    ("u" "Show unassigned tickets" jolly-brancher-list-unassigned-tickets)
    ("a" "Show all tickets" jolly-brancher-list-all-tickets)])
+
+(defun toggle-magit-jolly-brancher ()
+  "Toggle between Magit and Jolly Brancher modes."
+  (interactive)
+  (if (derived-mode-p 'jolly-brancher-tickets-mode)
+      ;; If currently in Jolly Brancher, switch to Magit
+      (magit-status)
+    ;; If in magit-mode, switch to Jolly Brancher
+    (when (and (derived-mode-p 'magit-mode)
+               (jolly-brancher--get-repo-root))
+      (jolly-brancher-list-my-tickets))))
+
+;; Set up key bindings when magit and jolly-brancher are loaded
+(with-eval-after-load "magit"
+  (define-key magit-mode-map (kbd "M-j") 'toggle-magit-jolly-brancher))
+
+(define-key jolly-brancher-tickets-mode-map (kbd "M-j") 'toggle-magit-jolly-brancher)
 
 (defun jolly-brancher--format-command (repo-path action &rest args)
   "Format a jolly-brancher command with REPO-PATH, ACTION and ARGS."
@@ -357,7 +382,6 @@ Wraps code blocks in triple backticks and preserves newlines."
   "Show jolly-brancher menu."
   ["Actions"
    ("l" "List tickets" jolly-brancher-mode-list-tickets)
-   ("o" "List open tickets" jolly-brancher-list-open-tickets)
    ("s" "Start branch" jolly-brancher-start-ticket)
    ("e" "End branch" jolly-brancher-end-branch)
    ("c" "Create ticket" jolly-brancher-create-ticket)
@@ -366,64 +390,13 @@ Wraps code blocks in triple backticks and preserves newlines."
   (transient-setup 'jolly-brancher-menu))
 
 ;;;###autoload
-(defun jolly-brancher-setup ()
-  "Setup jolly-brancher."
-  (interactive)
-  (jolly-brancher-mode 1))
-
-(defun jolly-brancher-create-ticket (&optional default-description)
-  "Create a new ticket with optional DEFAULT-DESCRIPTION."
-  (interactive)
-  (message "DEBUG: Starting create-ticket with initial-description: %s" default-description)
-  (let* ((title (read-string "Ticket title: "))
-         (description (read-string "Ticket description: "
-                                   (when default-description
-                                     (jolly-brancher--format-description default-description))))
-         (type (completing-read "Ticket type: "
-                                jolly-brancher-issue-types
-                                nil t nil nil "Bug")))
-    (if-let ((repo-path (jolly-brancher--get-repo-root)))
-        (let ((cmd (jolly-brancher--format-command
-                    repo-path
-                    "create-ticket"
-                    (list "--title" title
-                          "--description" description
-                          "--type" type))))
-          (message "Running command: %s" cmd)
-          (shell-command cmd))
-      (message "Not in a git repository"))))
-
 (defun jolly-brancher ()
-  "Switch to the jolly-brancher buffer if it exists, otherwise create it with my-tickets."
+  "Show the jolly-brancher menu."
   (interactive)
-  (let ((buffer-name "*jolly-brancher-tickets*"))
-    (if (get-buffer buffer-name)
-        (switch-to-buffer buffer-name)
-      (jolly-brancher-list-my-tickets))))
-
-(defun toggle-magit-jolly-brancher ()
-  "Toggle between Magit and Jolly Brancher modes."
-  (interactive)
-  (if (derived-mode-p 'jolly-brancher-tickets-mode)
-      ;; If currently in Jolly Brancher, switch to Magit
-      (magit-status)
-    ;; Else, switch to Jolly Brancher, ensure you are in a repo
-    (when (jolly-brancher--get-repo-root)
-      (jolly-brancher-list-my-tickets))))
+  (transient-setup 'jolly-brancher-menu))
 
 ;;;###autoload
-(define-minor-mode jolly-brancher-mode
-  "Minor mode for Git branch management with Jira integration."
-  :lighter " JB"
-  :keymap (let ((map (make-sparse-keymap)))
-            (define-key map (kbd "C-c j j") 'jolly-brancher-menu)
-            (define-key map (kbd "C-c j l") 'jolly-brancher-list-my-tickets)
-            (define-key map (kbd "C-c j s") 'jolly-brancher-start-ticket)
-            (define-key map (kbd "C-c j e") 'jolly-brancher-end-ticket)
-            (define-key map (kbd "C-c j t") 'jolly-brancher-mode-change-status)
-            (define-key map (kbd "C-c j c") 'jolly-brancher--maybe-create-from-region)
-            (define-key map (kbd "M-j") 'toggle-magit-jolly-brancher)
-            map))
+(global-set-key (kbd "M-j") 'jolly-brancher)
 
 (provide 'jolly-brancher)
 
