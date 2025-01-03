@@ -253,6 +253,22 @@ def main(args=None):
     )
 
     if args.action == "list":
+        # Get current branch name to identify checked out ticket
+        current_branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=repo_path,
+        ).stdout.strip()
+
+        # Extract ticket key from branch name
+        current_ticket = None
+        if current_branch:
+            ticket_match = re.search(r"([A-Z]+-\d+)", current_branch)
+            if ticket_match:
+                current_ticket = ticket_match.group(1)
+
         # Get all issues
         issues = jira.get_all_issues(
             project_name=jira_config.get("project"),
@@ -262,7 +278,8 @@ def main(args=None):
             created_within=args.created_within,
         )
         for issue in issues:
-            print(f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}")
+            is_current = current_ticket and issue.key == current_ticket
+            print(f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}{'  *' if is_current else ''}")
         return 0
 
     if args.action == "end":

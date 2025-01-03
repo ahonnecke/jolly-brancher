@@ -100,12 +100,22 @@
   "Face for repository path."
   :group 'jolly-brancher)
 
+(defface jolly-brancher-current-ticket-face
+  '((((class color) (background light))
+     (:background "#e8f0ff"))
+    (((class color) (background dark))
+     (:background "#2e3440")))
+  "Face for the currently checked out ticket."
+  :group 'jolly-brancher)
+
 (defconst jolly-brancher-tickets-mode-font-lock-keywords
   `(
     ;; Repository path
     ("^Repository: \\(.*\\)$" (1 'jolly-brancher-repo-face))
     ;; Active Query heading
     ("^Active Query:$" . 'jolly-brancher-query-face)
+    ;; Current ticket line (marked with *)
+    ("^\\([A-Z]+-[0-9]+\\).*\\*$" (0 'jolly-brancher-current-ticket-face append))
     ;; Ticket numbers (e.g. PD-1234)
     ("[A-Z]+-[0-9]+" . 'jolly-brancher-ticket-face)
     ;; Status text in brackets

@@ -62,12 +62,29 @@ It automatically populates the PR description with information from the ticket
 Configuration
 =============
 
-JIRA and git credentials are required in `~/.config/jolly_brancher.ini` in the following format:
+Global
+=============
+
+JIRA and git credentials are required in `~/.config/jolly_brancher.ini` it
+contains all the global settings.
+
+Example:
+::
+    [jira]
+    branch_format = {issue_type}/{ticket}-{summary}
+
+    [git]
+    pat = <REDACTED>
+
+Repo
+=============
+
+JIRA and git credentials are required in `.jolly.ini` in the root of the repo
+and overrides any global settings.
 
 ::
 
     [jira]
-    auth_email = <author@domain.com>
     base_url = https://<subdomain>.atlassian.net
     token = <basic_auth_token>
 
@@ -76,15 +93,11 @@ JIRA and git credentials are required in `~/.config/jolly_brancher.ini` in the f
     forge_root = https://github.com/<organization_name>/
 
 
-Future Features
+Porcelain
 ===============
-* Extract the contents of the comments in the branch and construct a description of the changes in the branch
-* Perform in place analysis of the branch and add information to the PR
-  - Were any tests added?s
-  - Run unit tests / linter (fetch from github actions)
-  - Include other interesting statistics
-* Automatically tag the owner of the files that were changed
-* Pull the acceptance criteria from the ticket and format it into a list of checkboxes so the developer can indicate which are met by the current revision
+This project started as a python utility, but over time I have found it to be
+more helpful as an emacs mode, so it's now a half lisp, half python monstrosity
+that is tailored exactly to my needs.
 
 Deploy
 ===============
