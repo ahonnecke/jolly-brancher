@@ -328,19 +328,6 @@ Wraps code blocks in triple backticks and preserves newlines."
   (jolly-brancher-change-ticket-status))
 
 ;;;###autoload
-(define-minor-mode jolly-brancher-mode
-  "Minor mode for Git branch management with Jira integration."
-  :lighter " JB"
-  :keymap (let ((map (make-sparse-keymap)))
-            (define-key map (kbd "C-c j j") 'jolly-brancher-menu)
-            (define-key map (kbd "C-c j l") 'jolly-brancher-list-my-tickets)
-            (define-key map (kbd "C-c j s") 'jolly-brancher-start-ticket)
-            (define-key map (kbd "C-c j e") 'jolly-brancher-end-ticket)
-            (define-key map (kbd "C-c j t") 'jolly-brancher-mode-change-status)
-            (define-key map (kbd "C-c j c") 'jolly-brancher--maybe-create-from-region)
-            map))
-
-;;;###autoload
 (transient-define-prefix jolly-brancher-menu ()
   "Show jolly-brancher menu."
   ["Actions"
@@ -380,6 +367,38 @@ Wraps code blocks in triple backticks and preserves newlines."
           (message "Running command: %s" cmd)
           (shell-command cmd))
       (message "Not in a git repository"))))
+
+(defun jolly-brancher ()
+  "Switch to the jolly-brancher buffer if it exists, otherwise create it with my-tickets."
+  (interactive)
+  (let ((buffer-name "*jolly-brancher-tickets*"))
+    (if (get-buffer buffer-name)
+        (switch-to-buffer buffer-name)
+      (jolly-brancher-list-my-tickets))))
+
+(defun toggle-magit-jolly-brancher ()
+  "Toggle between Magit and Jolly Brancher modes."
+  (interactive)
+  (if (derived-mode-p 'jolly-brancher-tickets-mode)
+      ;; If currently in Jolly Brancher, switch to Magit
+      (magit-status)
+    ;; Else, switch to Jolly Brancher, ensure you are in a repo
+    (when (jolly-brancher--get-repo-root)
+      (jolly-brancher-list-my-tickets))))
+
+;;;###autoload
+(define-minor-mode jolly-brancher-mode
+  "Minor mode for Git branch management with Jira integration."
+  :lighter " JB"
+  :keymap (let ((map (make-sparse-keymap)))
+            (define-key map (kbd "C-c j j") 'jolly-brancher-menu)
+            (define-key map (kbd "C-c j l") 'jolly-brancher-list-my-tickets)
+            (define-key map (kbd "C-c j s") 'jolly-brancher-start-ticket)
+            (define-key map (kbd "C-c j e") 'jolly-brancher-end-ticket)
+            (define-key map (kbd "C-c j t") 'jolly-brancher-mode-change-status)
+            (define-key map (kbd "C-c j c") 'jolly-brancher--maybe-create-from-region)
+            (define-key map (kbd "M-j") 'toggle-magit-jolly-brancher)
+            map))
 
 (provide 'jolly-brancher)
 
