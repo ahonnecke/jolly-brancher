@@ -145,10 +145,10 @@ def get_config_value(section, key, default=None):
 def git_pat():
     """Get GitHub Personal Access Token."""
     try:
-        return get_config_value(GIT_SECTION_NAME, "pat")
+        return get_config_value(GIT_SECTION_NAME, "git_pat")
     except SystemExit:
         sys.exit(
-            "Error: GitHub Personal Access Token not found in config. Add 'pat' under [git] section."
+            "Error: GitHub Personal Access Token not found in config. Add 'git_pat' under [git] section."
         )
 
 

@@ -324,6 +324,15 @@ Optional CREATED-WITHIN specifies time window for created date."
     (message "Running command: %s" cmd)
     (shell-command cmd)))
 
+(defun jolly-brancher-end-branch ()
+  "End current branch and create PR."
+  (interactive)
+  (when (yes-or-no-p "Create PR for current branch? ")
+    (let* ((repo-path (jolly-brancher--get-repo-root))
+           (cmd (jolly-brancher--format-command repo-path "end" nil)))
+      (message "Running command: %s" cmd)
+      (shell-command cmd))))
+
 (defun jolly-brancher-end-ticket ()
   "End work on the current ticket branch and create a PR."
   (interactive)
@@ -338,30 +347,31 @@ Optional CREATED-WITHIN specifies time window for created date."
   (interactive)
   (jolly-brancher-end-ticket))
 
-(defun jolly-brancher-end-branch ()
-  "End current branch and create PR."
-  (interactive)
-  (when (yes-or-no-p "Create PR for current branch? ")
-    (let* ((repo-path (jolly-brancher--get-repo-root))
-           (reviewers (jolly-brancher--select-reviewers))
-           (reviewer-args (mapcan (lambda (r) (list "--reviewer" r)) reviewers))
-           (cmd (jolly-brancher--format-command repo-path "end" reviewer-args)))
-      (message "Running command: %s" cmd)
-      (shell-command cmd))))
+(defun jolly-brancher--get-suggested-reviewers ()
+  "Get list of suggested reviewers based on file history."
+  (let* ((default-directory (jolly-brancher--get-repo-root))
+         (output (shell-command-to-string
+                  (format "%s suggest-reviewers --repo %s"
+                          jolly-brancher-command
+                          default-directory))))
+    (when (not (string-empty-p output))
+      (split-string output "\n" t))))
 
 (defun jolly-brancher--get-reviewers ()
   "Get list of potential reviewers for PR."
   (let* ((default-directory (jolly-brancher--get-repo-root))
-         (output (shell-command-to-string
-                  (format "%s list-reviewers --repo %s"
-                          jolly-brancher-command
-                          default-directory))))
-    ;; Only return reviewers if we got actual usernames back
-    ;; Skip if output only contains warning messages (they go to stderr)
-    (when (and (not (string-empty-p output))
-               (not (string-prefix-p "\n" output))  ; Skip if output starts with newline (warning message)
-               (string-match-p "^[[:alnum:]]" output))  ; Must start with alphanumeric (username)
-      (split-string output "\n" t))))
+         (manual-reviewers (shell-command-to-string
+                           (format "%s list-reviewers --repo %s"
+                                   jolly-brancher-command
+                                   default-directory)))
+         (suggested-reviewers (jolly-brancher--get-suggested-reviewers))
+         (all-reviewers (append 
+                        (when (and manual-reviewers 
+                                  (not (string-empty-p manual-reviewers)))
+                          (split-string manual-reviewers "\n" t))
+                        suggested-reviewers)))
+    ;; Remove duplicates and sort
+    (delete-dups all-reviewers)))
 
 (defun jolly-brancher--select-reviewers ()
   "Interactively select reviewers from the available list."
@@ -383,6 +393,19 @@ Wraps code blocks in triple backticks and preserves newlines."
     (let ((text (buffer-substring-no-properties (region-beginning) (region-end))))
       (deactivate-mark)
       (jolly-brancher-create-ticket text))))
+
+(defun jolly-brancher-create-ticket (title description)
+  "Create a new ticket with TITLE and DESCRIPTION."
+  (interactive
+   (list
+    (read-string "Ticket title: ")
+    (read-string "Ticket description: ")))
+  (let* ((default-directory (jolly-brancher--get-repo-root))
+         (cmd (jolly-brancher--format-command nil "create-ticket"
+                                            (list "--title" title
+                                                  "--description" description))))
+    (message "Creating ticket...")
+    (shell-command cmd)))
 
 (defun jolly-brancher-set-ticket-status (ticket-key status)
   "Set the status of TICKET-KEY to STATUS."

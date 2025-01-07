@@ -65,33 +65,13 @@ def is_repository_dirty(repo_path):
 
 
 def create_pull(
-    org, branch_name, parent_branch, short_desc, pr_body, github_repo, reviewers=None
+    org, branch_name, parent_branch, short_desc, pr_body, github_repo
 ) -> PullRequest:
-    # First create a Github instance:
-
-    # using an access token
-
-    # Github Enterprise with custom hostname
-    # g = Github(base_url="https://{hostname}/api/v3", login_or_token="access_token")
-
-    # Then play with your Github objects:
-    # for repo in g.get_user().get_repos():
-    #     print(repo.name)
-
     head = f"{org}:{branch_name}"
 
     if isinstance(parent_branch, list):
         parent_branch = parent_branch[0]
     base = f"{parent_branch}"
-
-    # prompt(
-    #     f"Create PR from {head} against {base} with title {short_desc}? ",
-    #     completer=YN_COMPLETER,
-    #     complete_while_typing=True,
-    # )
-    # @TODO dynamicise these
-
-    # breakpoint()
 
     print(f"Opening branch from head: '{head}' against base: '{base}'")
 
@@ -103,11 +83,6 @@ def create_pull(
             base=base,
             draft=False,
         )
-
-        # Add reviewers if specified
-        if reviewers:
-            pr.create_review_request(reviewers=reviewers)
-
         return pr
     except GithubException as err:
         first_error = err.data["errors"][0]
@@ -115,7 +90,7 @@ def create_pull(
         code = first_error.get("code")
         message = str(first_error.get("message"))
 
-        print(f"Failed to create PR becaues {message}")
+        print(f"Failed to create PR because {message}")
         if err.status == 422 and field == "head" and code == "invalid":
             print("Invalid HEAD, does the remote branch exist?")
             sys.exit(1)
@@ -277,7 +252,6 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
         short_desc,
         pr_body,
         github_repo,
-        reviewers=selected_reviewers,
     )
 
 
