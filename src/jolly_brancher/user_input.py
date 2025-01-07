@@ -105,20 +105,36 @@ def create_parser():
 
     parser.add_argument(
         "--type",
-        help="Type of ticket to create (default: Bug)",
-        default="Bug",
+        help="Type of ticket to create (default: Task)",
+        default="Task",
     )
 
     parser.add_argument(
         "--status",
         help="Status to set the ticket to (for set-status action)",
-        choices=["To Do", "In Progress", "Backlog", "New", "In Review"],
+        choices=[
+            "To Do",
+            "In Progress",
+            "Backlog",
+            "New",
+            "In Review",
+            "Blocked",
+            "QA",
+            "Staged",
+            "Done",
+        ],
     )
 
     parser.add_argument(
         "--version",
         action="version",
         version=f"jolly_brancher {__version__}",
+    )
+
+    parser.add_argument(
+        "--jql",
+        help="JQL query to filter tickets",
+        type=str,
     )
 
     # Logging options
@@ -170,6 +186,11 @@ def create_parser():
         "--no-assignee",
         action="store_true",
         help="Show only unassigned tickets",
+    )
+    assignee_group.add_argument(
+        "--next-up",
+        action="store_true",
+        help="Show In Progress and New tickets assigned to current user in PD project",
     )
 
     return parser

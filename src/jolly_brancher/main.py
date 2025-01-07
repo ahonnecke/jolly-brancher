@@ -478,6 +478,8 @@ def main(args=None):
             current_user=args.current_user,
             no_assignee=args.no_assignee,
             created_within=args.created_within,
+            jql=args.jql,
+            next_up=args.next_up,
         )
         for issue in issues:
             is_current = current_ticket and issue.key == current_ticket

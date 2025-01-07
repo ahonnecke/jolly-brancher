@@ -12,6 +12,7 @@ CONFIG_DIR = os.path.expanduser("~/.config")
 CONFIG_FILENAME = os.path.join(CONFIG_DIR, FILENAME)
 JIRA_SECTION_NAME = "jira"
 GIT_SECTION_NAME = "git"
+REVIEWERS_SECTION_NAME = "reviewers"
 DEFAULT_BRANCH_FORMAT = "{issue_type}/{ticket}-{summary}"
 
 
@@ -30,6 +31,12 @@ def ensure_config_exists():
         config[JIRA_SECTION_NAME] = {}
     if GIT_SECTION_NAME not in config:
         config[GIT_SECTION_NAME] = {}
+    if REVIEWERS_SECTION_NAME not in config:
+        config[REVIEWERS_SECTION_NAME] = {
+            'max_files': '5',
+            'max_reviewers': '3',
+            'excluded_patterns': 'bot@,noreply@,service@'
+        }
 
     # Save if we made changes
     if not os.path.exists(CONFIG_FILENAME):
@@ -246,3 +253,25 @@ def get_forge_root(repo_path=None):
         return config[GIT_SECTION_NAME]["forge_root"]
     except (KeyError, configparser.NoSectionError):
         return None
+
+
+def get_reviewer_config() -> dict:
+    """Get reviewer configuration settings.
+
+    Returns:
+        dict: Dictionary containing reviewer configuration settings
+            - max_files: Maximum number of files to analyze
+            - max_reviewers: Maximum number of reviewers to suggest
+            - excluded_patterns: Comma-separated list of email patterns to exclude
+    """
+    config = get_config()
+    max_files = config.getint(REVIEWERS_SECTION_NAME, 'max_files', fallback=5)
+    max_reviewers = config.getint(REVIEWERS_SECTION_NAME, 'max_reviewers', fallback=3)
+    excluded_patterns = config.get(REVIEWERS_SECTION_NAME, 'excluded_patterns', 
+                                 fallback='bot@,noreply@,service@').split(',')
+    
+    return {
+        'max_files': max_files,
+        'max_reviewers': max_reviewers,
+        'excluded_patterns': [p.strip() for p in excluded_patterns if p.strip()]
+    }

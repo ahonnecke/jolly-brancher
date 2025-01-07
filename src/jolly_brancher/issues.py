@@ -21,6 +21,10 @@ class IssueStatus(Enum):
     BACKLOG = "Backlog"
     NEW = "New"
     IN_REVIEW = "In Review"
+    BLOCKED = "Blocked"
+    QA = "QA"
+    STAGED = "STAGED"
+    DONE = "DONE"
 
     @classmethod
     def selectable_statuses(cls):
@@ -31,21 +35,43 @@ class IssueStatus(Enum):
             cls.BACKLOG,
             cls.NEW,
             cls.IN_REVIEW,
+            cls.BLOCKED,
+            cls.QA,
+            cls.STAGED,
+            cls.DONE,
         ]
 
 
 class IssueType(Enum):
+    """Issue types and their descriptions."""
+
     EPIC = "Epic"
-    STORY = "Story"
-    ENHANCEMENT = "Enhancement"
-    BUG = "Bug"
-    TASK = "Task"
-    SUB_TASK = "Sub-task"
-    SUBTASK = "Subtask"
-    TECHDEBT = "Tech Debt"
-    INCIDENT = "Incident"
-    FEATURE = "Feature"
+    """A grouping of related features or functionality that cannot be delivered in a single cycle.
+    Example: "User Management" covering login, registration, and role assignment."""
+
     SPIKE = "Spike"
+    """Encompasses research, prototyping, investigation, or exploration to expose technical limitations,
+    risk, or provide better understanding for estimation.
+    Example: Investigating a new payment gateway integration."""
+
+    STORY = "Story"
+    """Encompasses requirements and features necessary to be delivered."""
+
+    SUBTASK = "Subtask"
+    """A smaller, actionable piece of work required to complete a Story.
+    Example: "Create UI for password reset form" (subtask of a Story)"""
+
+    BUG = "Bug"
+    """Errors, defects, or issues that either violate AC in related issues or fail to meet design intent.
+    Example: A login button does not function as expected."""
+
+    TASK = "Task"
+    """Any type of work not represented by other types.
+    Example: "Update documentation for release notes."
+    A Task will not include code that affects the product."""
+
+    INCIDENT = "Incident"
+    TECHDEBT = "Tech Debt"
 
     @classmethod
     def from_branch_name(cls, branch_name):
@@ -79,6 +105,8 @@ def get_all_issues(
     current_user=False,
     no_assignee=False,
     created_within=False,
+    jql=None,
+    next_up=False,
 ):
     """Get all issues from Jira.
 
@@ -90,6 +118,8 @@ def get_all_issues(
         current_user: If True, show only tickets assigned to current user
         no_assignee: If True, show only unassigned tickets
         created_within: Time period for created filter (e.g. "5w" for 5 weeks, "1M" for 1 month)
+        jql: Optional JQL query to filter tickets
+        next_up: If True, show In Progress and New tickets assigned to current user in PD project
 
     Returns:
         List of Jira issues
@@ -98,75 +128,81 @@ def get_all_issues(
     i = 0
     chunk_size = 100
 
-    # Get list of statuses for display
-    status_list = [str(x.value) for x in IssueStatus.selectable_statuses()]
-    status_filter = ",".join([f"'{x}'" for x in status_list])
-    status_display = ", ".join(status_list)
-
-    # Handle assignee filtering
-    if current_user:
-        assignee_condition = "assignee = currentUser()"
-        assignee_display = "My Tickets"
-    elif no_assignee:
-        assignee_condition = "assignee is EMPTY"
-        assignee_display = "Unassigned Tickets"
+    # If JQL is provided, use it directly
+    if jql:
+        jql_query = jql
     else:
-        assignee_condition = None
-        assignee_display = "All Tickets"
+        # Build conditions list
+        conditions = []
 
-    # Format created display text
-    created_display = created_within
-    if not created_within:
-        created_display = "All time"
-    elif created_within.endswith("w"):
-        weeks = created_within[:-1]
-        created_display = f"Last {weeks} weeks"
-    elif created_within.endswith("M"):
-        months = created_within[:-1]
-        created_display = f"Last {months} months"
-    elif created_within.endswith("d"):
-        days = created_within[:-1]
-        created_display = f"Last {days} days"
-    elif created_within.endswith("y"):
-        years = created_within[:-1]
-        created_display = f"Last {years} years"
+        if next_up:
+            conditions.extend([
+                "project = PD",
+                "assignee = currentUser()",
+                "status in ('In Progress', 'New')"
+            ])
+        else:
+            # Get list of statuses for display
+            status_list = [str(x.value) for x in IssueStatus.selectable_statuses()]
+            status_filter = ",".join([f"'{x}'" for x in status_list])
+            conditions.append(f"status in ({status_filter})")
 
-    # Build conditions list
-    conditions = [f"status in ({status_filter})"]
+            # Handle assignee filtering
+            if current_user:
+                conditions.append("assignee = currentUser()")
+            elif no_assignee:
+                conditions.append("assignee is EMPTY")
 
-    # Add created filter if specified
-    if created_within:
-        conditions.append(f"created >= -{created_within}")
+            if project_name:
+                conditions.append(f"project = {project_name}")
 
-    # Only add assignee condition if it's set
-    if assignee_condition:
-        conditions.append(assignee_condition)
+        # Add created filter if specified
+        if created_within:
+            conditions.append(f"created >= -{created_within}")
 
-    if project_name:
-        conditions.append(f"project = {project_name}")
+        jql_query = " AND ".join(conditions)
 
-    jql = " AND ".join(conditions)
-    _logger.debug("JQL query: %s", jql)
+    _logger.debug("JQL query: %s", jql_query)
 
     # Print repository and filter info
     if repo_path:
         print(f"Repository: {repo_path}")
-    print(f"Status: {status_display}")
-    if created_within:
-        print(f"Created: {created_display}")
-    if project_name:
-        print(f"Project: {project_name}")
-    print(f"Assignee: {assignee_display}")
+    
+    if next_up:
+        print("Filter: Next Up Tickets (In Progress and New, assigned to you, in PD project)")
+    else:
+        if not jql:  # Only show these if not using custom JQL
+            print(f"Status: {', '.join([str(x.value) for x in IssueStatus.selectable_statuses()])}")
+            if created_within:
+                created_display = created_within
+                if not created_within:
+                    created_display = "All time"
+                elif created_within.endswith("w"):
+                    weeks = created_within[:-1]
+                    created_display = f"Last {weeks} weeks"
+                elif created_within.endswith("M"):
+                    months = created_within[:-1]
+                    created_display = f"Last {months} months"
+                elif created_within.endswith("d"):
+                    days = created_within[:-1]
+                    created_display = f"Last {days} days"
+                elif created_within.endswith("y"):
+                    years = created_within[:-1]
+                    created_display = f"Last {years} years"
+                print(f"Created: {created_display}")
+            if project_name:
+                print(f"Project: {project_name}")
+            print(f"Assignee: {'My Tickets' if current_user else 'Unassigned Tickets' if no_assignee else 'All Tickets'}")
 
     # Only show JQL in verbose mode
     if _logger.getEffectiveLevel() <= logging.DEBUG:
         print("\nJQL Query:")
-        print(f"{jql}")
+        print(f"{jql_query}")
     print()
 
     while True:
-        chunk = jira_client.search_issues(
-            jql,
+        chunk = jira_client._JIRA.search_issues(
+            jql_query,
             startAt=i,
             maxResults=chunk_size,
             fields="summary,status,assignee",
@@ -212,6 +248,8 @@ class JiraClient:
         no_assignee=False,
         repo_path=None,
         created_within=None,
+        jql=None,
+        next_up=False,
     ):
         """Get all issues from Jira.
 
@@ -221,25 +259,20 @@ class JiraClient:
             no_assignee: If True, show only unassigned tickets
             repo_path: Optional repository path to display
             created_within: Time period for created filter (e.g. "5w" for 5 weeks, "1M" for 1 month)
+            jql: Optional JQL query to filter tickets
+            next_up: If True, show In Progress and New tickets assigned to current user in PD project
         """
-        jql_parts = []
-
-        if project_name:
-            jql_parts.append(f"project = {project_name}")
-
-        if current_user:
-            jql_parts.append(f"assignee = currentUser()")
-            jql_parts.append(f'status in ("{IssueStatus.TODO.value}", "{IssueStatus.IN_PROGRESS.value}")')
-        elif no_assignee:
-            jql_parts.append("assignee is EMPTY")
-
-        if created_within:
-            jql_parts.append(f"created >= -{created_within}")
-
-        jql = " AND ".join(jql_parts) if jql_parts else ""
-
-        _logger.debug("JQL query: %s", jql)
-        return self._JIRA.search_issues(jql, maxResults=100)
+        return get_all_issues(
+            self,
+            project_name=project_name,
+            scope=self.scope,
+            repo_path=repo_path,
+            current_user=current_user,
+            no_assignee=no_assignee,
+            created_within=created_within,
+            jql=jql,
+            next_up=next_up,
+        )
 
     def issue(self, ticket):
         return self._JIRA.issue(ticket)

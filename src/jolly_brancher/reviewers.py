@@ -7,6 +7,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Set, Tuple
 
+from .config import get_reviewer_config
+
 _logger = logging.getLogger(__name__)
 
 @dataclass
@@ -90,19 +92,25 @@ def get_file_contributors(repo_path: str, file_path: str) -> Dict[str, int]:
     except subprocess.CalledProcessError:
         return {}
 
-def suggest_reviewers(repo_path: str, max_files: int = 5, max_reviewers: int = 3) -> Set[str]:
+def suggest_reviewers(repo_path: str, max_files: int = None, max_reviewers: int = None) -> Set[str]:
     """
     Analyze the most changed files and suggest reviewers based on contribution history.
     
     Args:
         repo_path: Path to the git repository
-        max_files: Maximum number of files to analyze
-        max_reviewers: Maximum number of reviewers to suggest
+        max_files: Maximum number of files to analyze (overrides config)
+        max_reviewers: Maximum number of reviewers to suggest (overrides config)
         
     Returns:
         Set of email addresses for suggested reviewers
     """
     repo_path = os.path.abspath(repo_path)
+    
+    # Get configuration
+    config = get_reviewer_config()
+    max_files = max_files or config['max_files']
+    max_reviewers = max_reviewers or config['max_reviewers']
+    excluded_patterns = config['excluded_patterns']
     
     # Validate repository
     if not os.path.isdir(repo_path):
@@ -147,15 +155,14 @@ def suggest_reviewers(repo_path: str, max_files: int = 5, max_reviewers: int = 3
             score = count * recency_weight * changes_weight
             contributor_scores[contributor] += score
     
-    # Get top contributors as reviewers, excluding common service accounts
-    excluded_patterns = {'bot@', 'noreply@', 'service@'}
+    # Get top contributors as reviewers, excluding configured patterns
     reviewers = set()
     
     for email, _ in sorted(contributor_scores.items(), key=lambda x: x[1], reverse=True):
         if len(reviewers) >= max_reviewers:
             break
             
-        # Skip service accounts
+        # Skip excluded patterns
         if not any(pattern in email.lower() for pattern in excluded_patterns):
             reviewers.add(email)
     
