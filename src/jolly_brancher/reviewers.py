@@ -35,7 +35,8 @@ def get_changed_files(repo_path: str) -> List[str]:
             
         return files
     except subprocess.CalledProcessError as e:
-        _logger.error(f"Failed to get changed files: {e}")
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug(f"Failed to get changed files: {e}")
         return []
 
 def get_file_changes_count(repo_path: str, files: List[str]) -> List[Tuple[str, int]]:
@@ -52,9 +53,11 @@ def get_file_changes_count(repo_path: str, files: List[str]) -> List[Tuple[str, 
                     total_changes = int(added) + int(deleted)
                     changes.append((file, total_changes))
                 except ValueError:
-                    _logger.warning(f"Could not parse git diff output for {file}")
+                    if _logger.isEnabledFor(logging.DEBUG):
+                        _logger.debug(f"Could not parse git diff output for {file}")
         except subprocess.CalledProcessError:
-            _logger.warning(f"Failed to get changes for {file}")
+            if _logger.isEnabledFor(logging.DEBUG):
+                _logger.debug(f"Failed to get changes for {file}")
             
     return sorted(changes, key=lambda x: x[1], reverse=True)
 
@@ -111,7 +114,8 @@ def suggest_reviewers(repo_path: str, max_files: int = 5, max_reviewers: int = 3
     # Get changed files
     changed_files = get_changed_files(repo_path)
     if not changed_files:
-        _logger.warning("No changed files found")
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug("No changed files found")
         return set()
     
     # Get the files with the most changes
@@ -155,7 +159,7 @@ def suggest_reviewers(repo_path: str, max_files: int = 5, max_reviewers: int = 3
         if not any(pattern in email.lower() for pattern in excluded_patterns):
             reviewers.add(email)
     
-    if not reviewers:
-        _logger.warning("No suitable reviewers found")
+    if not reviewers and _logger.isEnabledFor(logging.DEBUG):
+        _logger.debug("No suitable reviewers found")
         
     return reviewers
