@@ -154,7 +154,23 @@
   "Major mode for viewing Jira tickets."
   (setq buffer-read-only t)
   (setq mode-name "Jolly Brancher Tickets")
-  (use-local-map jolly-brancher-tickets-mode-map)
+  
+  ;; Explicitly define the local map and override RET
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map special-mode-map)
+    (define-key map (kbd "RET") 'jolly-brancher-start-ticket-at-point)
+    (define-key map (kbd "v") 'jolly-brancher-open-ticket-in-browser)
+    (define-key map (kbd "g") 'jolly-brancher-refresh-tickets)
+    (define-key map (kbd "s") 'jolly-brancher-change-ticket-status)
+    (define-key map (kbd "q") 'quit-window)
+    (define-key map (kbd "m") 'jolly-brancher-list-my-tickets)
+    (define-key map (kbd "n") 'jolly-brancher-list-next-up-tickets)
+    (define-key map (kbd "u") 'jolly-brancher-list-unassigned-tickets)
+    (define-key map (kbd "a") 'jolly-brancher-list-all-tickets)
+    (define-key map (kbd "/") 'jolly-brancher-search-tickets)
+    (define-key map (kbd "?") 'jolly-brancher-tickets-menu)
+    (use-local-map map))
+  
   (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
   (font-lock-mode 1)
   (hl-line-mode 1))
@@ -236,7 +252,9 @@ Returns nil if not in a Git repository."
   "Get the ticket ID at point."
   (save-excursion
     (beginning-of-line)
+    (message "Debugging: Current line: %s" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
     (when (looking-at "^\\([A-Z]+-[0-9]+\\)")
+      (message "Debugging: Ticket regex match found")
       (match-string-no-properties 1))))
 
 (defun jolly-brancher--list-tickets (current-user no-assignee created-within)
@@ -289,30 +307,20 @@ CREATED-WITHIN: Time period for created filter (e.g. \"5w\" for 5 weeks)."
 (defun jolly-brancher-open-ticket-in-browser ()
   "Open the Jira ticket at point in a web browser."
   (interactive)
+  (message "Debugging: Attempting to open ticket in browser")
   (when-let ((ticket (jolly-brancher--get-ticket-at-point)))
-    (browse-url (format "%s/browse/%s"
-                       (jolly-brancher--get-jira-url)
-                       ticket))))
-
-(defun jolly-brancher--get-jira-url ()
-  "Get the Jira URL from config."
-  (let ((config (jolly-brancher--read-config)))
-    (cdr (assoc 'url config))))
-
-(defun jolly-brancher--read-config ()
-  "Read jolly-brancher config from .jolly-brancher.json."
-  (let ((config-file (expand-file-name ".jolly-brancher.json" (getenv "HOME"))))
-    (when (file-exists-p config-file)
-      (with-temp-buffer
-        (insert-file-contents config-file)
-        (let ((json-object-type 'alist))
-          (json-read-from-string (buffer-string)))))))
+    (message "Debugging: Found ticket: %s" ticket)
+    (let ((jira-url jolly-brancher-jira-url))
+      (message "Debugging: Jira URL: %s" jira-url)
+      (browse-url (format "%s/browse/%s" jira-url ticket)))))
 
 (defun jolly-brancher-start-ticket-at-point ()
   "Start a branch for the ticket at point."
   (interactive)
+  (message "Debugging: Starting ticket start process")
   (when-let* ((ticket-id (jolly-brancher--get-ticket-at-point))
               (repo-path (buffer-local-value 'jolly-brancher--current-repo (current-buffer))))
+    (message "Debugging: Ticket ID found: %s, Repo Path: %s" ticket-id repo-path)
     (let ((cmd (jolly-brancher--format-command repo-path "start" (list "--ticket" ticket-id))))
       (message "Starting branch for ticket %s in %s" ticket-id repo-path)
       (shell-command cmd))))
