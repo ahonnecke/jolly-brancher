@@ -61,3 +61,82 @@ class TestMainFunction(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+    def test_get_upstream_repo(self):
+        # Test retrieving upstream repository URL
+        result = main.get_upstream_repo('/path/to/repo')
+        self.assertIsInstance(result, str)
+
+    def test_get_open_tickets_file(self):
+        # Test retrieving the path to the open tickets file
+        result = main.get_open_tickets_file()
+        self.assertIsInstance(result, str)
+
+    def test_load_open_tickets(self):
+        # Test loading open tickets from file
+        result = main.load_open_tickets()
+        self.assertIsInstance(result, list)
+
+    def test_save_open_tickets(self):
+        # Test saving open tickets to file
+        main.save_open_tickets([{'key': 'JIRA-123', 'summary': 'Fix bug', 'repo_path': '/path/to/repo'}])
+        result = main.load_open_tickets()
+        self.assertIn({'key': 'JIRA-123', 'summary': 'Fix bug', 'repo_path': '/path/to/repo'}, result)
+
+    def test_add_open_ticket(self):
+        # Test adding an open ticket
+        main.add_open_ticket('JIRA-123', 'Fix bug', '/path/to/repo')
+        result = main.load_open_tickets()
+        self.assertIn({'key': 'JIRA-123', 'summary': 'Fix bug', 'repo_path': '/path/to/repo'}, result)
+
+    def test_remove_open_ticket(self):
+        # Test removing an open ticket
+        main.remove_open_ticket('JIRA-123')
+        result = main.load_open_tickets()
+        self.assertNotIn({'key': 'JIRA-123', 'summary': 'Fix bug', 'repo_path': '/path/to/repo'}, result)
+
+    def test_get_ticket_repo(self):
+        # Test retrieving the repository path for a ticket
+        main.add_open_ticket('JIRA-123', 'Fix bug', '/path/to/repo')
+        result = main.get_ticket_repo('JIRA-123')
+        self.assertEqual(result, '/path/to/repo')
+
+    def test_get_default_branch(self):
+        # Test retrieving the default branch for the repository
+        result = main.get_default_branch('/path/to/repo')
+        self.assertIsInstance(result, str)
+
+    def test_branch_exists(self):
+        # Test checking if a branch exists
+        result = main.branch_exists('feature/new-feature', '/path/to/repo')
+        self.assertIsInstance(result, bool)
+
+    def test_create_branch_name(self):
+        # Test creating a branch name from an issue
+        issue = {'fields': {'summary': 'Implement new feature', 'issuetype': {'name': 'Story'}}}
+        result = main.create_branch_name(issue)
+        self.assertIsInstance(result, str)
+
+    def test_create_ticket(self):
+        # Test creating a new ticket in Jira
+        jira_client = main.JiraClient('https://your-org.atlassian.net', 'your.email@example.com', 'your-jira-api-token')
+        result = main.create_ticket(jira_client, 'New Feature', 'Implement a new feature', 'Story', 'YOUR-PROJECT-KEY')
+        self.assertIsInstance(result, bool)
+
+    def test_list_reviewers(self):
+        # Test listing repository collaborators that can be added as reviewers
+        args = {'repo': '/path/to/repo'}
+        result = main.list_reviewers(args)
+        self.assertIsInstance(result, list)
+
+    def test_open_pr(self):
+        # Test opening a pull request
+        repo_path = '/path/to/repo'
+        git_pat = 'your_git_pat'
+        org = 'your_org'
+        repo = 'your_repo'
+        jira_client = main.JiraClient('https://your-org.atlassian.net', 'your.email@example.com', 'your-jira-api-token')
+        result = main.open_pr(repo_path, git_pat, org, repo, jira_client)
+        self.assertIsInstance(result, main.PullRequest)
+
+if __name__ == '__main__':
+    unittest.main()
