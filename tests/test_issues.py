@@ -1,5 +1,5 @@
 import unittest
-from src.jolly_brancher.issues import IssueStatus
+from jolly_brancher.issues import IssueStatus
 
 class TestIssueStatus(unittest.TestCase):
 
