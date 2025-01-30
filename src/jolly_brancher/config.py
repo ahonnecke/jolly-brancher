@@ -68,9 +68,12 @@ def find_repo_root(start_path: Optional[str] = None) -> Optional[str]:
     return None
 
 
-def get_local_config() -> Optional[configparser.ConfigParser]:
+def get_local_config(repo_path=None) -> Optional[configparser.ConfigParser]:
     """Get configuration from local .jolly file if it exists."""
-    repo_root = find_repo_root()
+    if repo_path:
+        repo_root = repo_path
+    else:
+        repo_root = find_repo_root()
     if not repo_root:
         return None
 
@@ -187,6 +190,21 @@ def get_local_git_pat(repo_path=None):
         return config[GIT_SECTION_NAME]["git_pat"]
     except (KeyError, configparser.NoSectionError):
         return None
+
+
+def get_local_project(repo_path=None):
+    """Get project from local .jolly.ini file.
+
+    Args:
+        repo_path: Optional path to repository. If not provided, will search from current directory.
+        
+    Returns:
+        str: Project key from local config, or None if not found
+    """
+    local_config = get_local_config(repo_path)
+    if local_config and JIRA_SECTION_NAME in local_config:
+        return local_config[JIRA_SECTION_NAME].get('project')
+    return None
 
 
 def get_jira_config():

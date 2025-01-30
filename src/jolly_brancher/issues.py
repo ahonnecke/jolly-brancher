@@ -7,6 +7,8 @@ from enum import Enum
 from jira import JIRA
 from jira.exceptions import JIRAError
 
+from .config import get_local_project
+
 _logger = logging.getLogger(__name__)
 
 USER_SCOPE = "USER"
@@ -112,7 +114,7 @@ def get_all_issues(
 
     Args:
         jira_client: JIRA client instance
-        project_name: Optional project key to filter by
+        project_name: Optional project key to filter by. If not provided, will try to get from local .jolly.ini
         scope: Optional scope filter
         repo_path: Optional repository path to display
         current_user: If True, show only tickets assigned to current user
@@ -126,15 +128,22 @@ def get_all_issues(
     """
     issues = []
     i = 0
-    chunk_size = 100
+    chunk_size = 50
 
-    # If JQL is provided, use it directly
+    if not project_name:
+        project_name = get_local_project(repo_path)
+
+    # Build base conditions list
+    conditions = []
+
+    # Add project filter if available
+    if project_name and not next_up:  # next_up already includes project filter
+        conditions.append(f"project = {project_name}")
+
+    # If JQL is provided, add it to conditions
     if jql:
-        jql_query = jql
+        conditions.append(f"({jql})")
     else:
-        # Build conditions list
-        conditions = []
-
         if next_up:
             conditions.extend([
                 "project = PD",
@@ -153,14 +162,11 @@ def get_all_issues(
             elif no_assignee:
                 conditions.append("assignee is EMPTY")
 
-            if project_name:
-                conditions.append(f"project = {project_name}")
+    # Add created filter if specified
+    if created_within:
+        conditions.append(f"created >= -{created_within}")
 
-        # Add created filter if specified
-        if created_within:
-            conditions.append(f"created >= -{created_within}")
-
-        jql_query = " AND ".join(conditions)
+    jql_query = " AND ".join(conditions)
 
     _logger.debug("JQL query: %s", jql_query)
 

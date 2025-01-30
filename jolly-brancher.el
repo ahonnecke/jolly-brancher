@@ -162,6 +162,7 @@
     (define-key map (kbd "v") 'jolly-brancher-open-ticket-in-browser)
     (define-key map (kbd "g") 'jolly-brancher-refresh-tickets)
     (define-key map (kbd "s") 'jolly-brancher-change-ticket-status)
+    (define-key map (kbd "e") 'jolly-brancher-end-ticket)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "m") 'jolly-brancher-list-my-tickets)
     (define-key map (kbd "n") 'jolly-brancher-list-next-up-tickets)
@@ -206,6 +207,7 @@
     (define-key map (kbd "a") 'jolly-brancher-list-all-tickets)
     (define-key map (kbd "/") 'jolly-brancher-search-tickets)
     (define-key map (kbd "?") 'jolly-brancher-tickets-menu)
+    (define-key map (kbd "e") 'jolly-brancher-end-ticket)
     map)
   "Keymap for `jolly-brancher-tickets-mode'.")
 
@@ -485,7 +487,7 @@ Wraps code blocks in triple backticks and preserves newlines."
   (if-let ((repo-path (jolly-brancher--get-repo-root)))
       (let* ((jql (format "summary ~ \\\"%s\\\" OR description ~ \\\"%s\\\"" query query))  ; Using double quotes for JQL
              (args (list (concat "--jql=" jql)  ; No need for shell-quote-argument since we're escaping quotes
-                        "--created_within=5w"))  ; Add time window to keep results manageable
+                         "--created_within=5w"))  ; Add time window to keep results manageable
              (cmd (jolly-brancher--format-command repo-path "list" args)))
         (message "Running search command: %s" cmd)
         (jolly-brancher--display-tickets cmd repo-path))
