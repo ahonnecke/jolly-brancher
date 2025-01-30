@@ -7,23 +7,5 @@ build-backend = "setuptools.build_meta"
 # See configuration details in https://github.com/pypa/setuptools_scm
 version_scheme = "no-guess-dev"
 
-# [project]
-# name = "jolly-brancher"
-# version = "1.0.3"
-# description = "A sweet branch creation suite"
-# authors = [
-#     {name = "Ashton Honnecke", email = "public@pixelstub.com"},
-# ]
-# dependencies = [
-#     "argparse==1.4.0",
-#     "prompt-toolkit==3.0.47",
-#     "pygithub==2.3.0",
-# ]
-# requires-python = ">=3.11"
-# readme = "README.md"
-# license = {text = "MIT"}
-# classifiers = [
-#     "Programming Language :: Python :: 3",
-#     "License :: OSI Approved :: MIT License",
-#     "Operating System :: OS Independent",
-# ]
+[tool.pytest.ini_options]
+testpaths = ["tests"]

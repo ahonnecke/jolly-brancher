@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 import json
-from src.jolly_brancher.main import main
+from jolly_brancher.main import main
 
 class TestMainFunction(unittest.TestCase):
 
