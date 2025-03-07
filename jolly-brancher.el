@@ -307,7 +307,6 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "v") 'jolly-brancher-open-ticket-in-browser)
     (define-key map (kbd "g") 'jolly-brancher-refresh-tickets)
     (define-key map (kbd "s") 'jolly-brancher-change-ticket-status)
-    (define-key map (kbd "e") 'jolly-brancher-end-ticket)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "m") 'jolly-brancher-list-my-tickets)
     (define-key map (kbd "n") 'jolly-brancher-list-next-up-tickets)
@@ -315,6 +314,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "a") 'jolly-brancher-list-all-tickets)
     (define-key map (kbd "/") 'jolly-brancher-search-tickets)
     (define-key map (kbd "?") 'jolly-brancher-tickets-menu)
+    (define-key map (kbd "e") 'jolly-brancher-end-ticket)
     (use-local-map map))
   
   (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
@@ -356,27 +356,80 @@ Wraps code blocks in triple backticks and preserves newlines."
     map)
   "Keymap for `jolly-brancher-tickets-mode'.")
 
+(defvar jolly-brancher-mode-map
+  (let ((map (make-sparse-keymap)))
+    ;; Global prefix key bindings
+    (define-key map (kbd "C-c j j") 'jolly-brancher-dispatch)
+    (define-key map (kbd "C-c j l") 'jolly-brancher-list-my-tickets)
+    (define-key map (kbd "C-c j s") 'jolly-brancher-start)
+    (define-key map (kbd "C-c j e") 'jolly-brancher-end)
+    (define-key map (kbd "C-c j t") 'jolly-brancher-set-status)
+    (define-key map (kbd "C-c j c") 'jolly-brancher-create-ticket)
+    ;; Quick access keys
+    (define-key map (kbd "M-j") 'jolly-brancher-dispatch)
+    (define-key map (kbd "M-m") 'jolly-brancher-toggle-magit)
+    ;; Single key bindings in jolly-brancher buffers
+    (define-key map (kbd "j") 'jolly-brancher-dispatch)
+    (define-key map (kbd "l") 'jolly-brancher-list-my-tickets)
+    (define-key map (kbd "s") 'jolly-brancher-start)
+    (define-key map (kbd "e") 'jolly-brancher-end)
+    (define-key map (kbd "t") 'jolly-brancher-set-status)
+    (define-key map (kbd "c") 'jolly-brancher-create-ticket)
+    map)
+  "Keymap for `jolly-brancher-mode'.")
+
+;;;###autoload
+(define-minor-mode jolly-brancher-mode
+  "Minor mode for Git branch management with Jira integration.
+\\{jolly-brancher-mode-map}
+
+Global Commands:
+\\[jolly-brancher-toggle-magit] - Toggle between jolly-brancher/magit
+\\[jolly-brancher-dispatch] - Open jolly-brancher menu
+\\[jolly-brancher-list-my-tickets] - List tickets
+\\[jolly-brancher-start] - Start branch
+\\[jolly-brancher-end] - End branch and create PR"
+  :lighter " Jolly"
+  :keymap jolly-brancher-mode-map
+  :global t
+  (if jolly-brancher-mode
+      (message "Jolly Brancher mode enabled. Press M-j or C-c j j for commands")
+    (message "Jolly Brancher mode disabled")))
+
+(transient-define-prefix jolly-brancher-dispatch ()
+  "Show popup menu for jolly-brancher commands."
+  ["Jolly Brancher Commands"
+   ["Tickets"
+    ("l" "List my tickets" jolly-brancher-list-my-tickets)
+    ("u" "List unassigned tickets" jolly-brancher-list-unassigned-tickets)
+    ("a" "List all tickets" jolly-brancher-list-all-tickets)
+    ("n" "List next-up tickets" jolly-brancher-list-next-up-tickets)
+    ("/" "Search tickets" jolly-brancher-search-tickets)]
+   ["Actions"
+    ("s" "Start work on ticket" jolly-brancher-start)
+    ("e" "End work and create PR" jolly-brancher-end)
+    ("c" "Create new ticket" jolly-brancher-create-ticket)
+    ("t" "Set ticket status" jolly-brancher-set-status)]
+   ["Navigation"
+    ("m" "Toggle Magit/Jolly" jolly-brancher-toggle-magit)
+    ("q" "Quit" transient-quit-one)]])
+
 (transient-define-prefix jolly-brancher-tickets-menu ()
   "Show menu for actions in the tickets buffer."
-  ["Actions"
-   ("RET" "Start branch for ticket" jolly-brancher-start-ticket-at-point)
-   ("v" "View ticket in browser" jolly-brancher-open-ticket-in-browser)
-   ("g" "Refresh list" jolly-brancher-refresh-tickets)
-   ("s" "Change ticket status" jolly-brancher-change-ticket-status)
-   ("/" "Search tickets" jolly-brancher-search-tickets)
-   ("q" "Quit window" quit-window)]
-  ["Filter tickets"
-   ("m" "Show my tickets" jolly-brancher-list-my-tickets)
-   ("n" "Show next-up tickets" jolly-brancher-list-next-up-tickets)
-   ("u" "Show unassigned tickets" jolly-brancher-list-unassigned-tickets)
-   ("a" "Show all tickets" jolly-brancher-list-all-tickets)])
-
-(defun jolly-brancher--highlight-ticket ()
-  "Highlight the current ticket line."
-  (when (eq major-mode 'jolly-brancher-tickets-mode)
-    (let ((ticket (jolly-brancher--get-ticket-at-point)))
-      (when ticket
-        (message "Current ticket: %s" ticket)))))
+  ["Jolly Brancher Tickets"
+   ["Actions"
+    ("RET" "Start branch for ticket" jolly-brancher-start-ticket-at-point)
+    ("v" "View ticket in browser" jolly-brancher-open-ticket-in-browser)
+    ("g" "Refresh list" jolly-brancher-refresh-tickets)
+    ("s" "Change ticket status" jolly-brancher-change-ticket-status)
+    ("e" "End work and create PR" jolly-brancher-end-ticket)
+    ("q" "Quit window" quit-window)]
+   ["Filter Tickets"
+    ("m" "Show my tickets" jolly-brancher-list-my-tickets)
+    ("n" "Show next-up tickets" jolly-brancher-list-next-up-tickets)
+    ("u" "Show unassigned tickets" jolly-brancher-list-unassigned-tickets)
+    ("a" "Show all tickets" jolly-brancher-list-all-tickets)
+    ("/" "Search tickets" jolly-brancher-search-tickets)]])
 
 (defun jolly-brancher--get-repo-root ()
   "Get the root directory of the current Git repository.
@@ -418,32 +471,12 @@ Returns nil if not in a Git repository."
       (message "DEBUG: Final command: %S" final-cmd)
       final-cmd)))
 
-;;;###autoload
-(define-minor-mode jolly-brancher-mode
-  "Minor mode for Git branch management with Jira integration."
-  :lighter " JB"
-  :keymap (let ((map (make-sparse-keymap)))
-            (define-key map (kbd "M-j") 'jolly-brancher)
-            (define-key map (kbd "M-m") 'jolly-brancher-or-magit)
-            (define-key map (kbd "C-c j j") 'jolly-brancher)
-            (define-key map (kbd "C-c j l") 'jolly-brancher-list-my-tickets)
-            (define-key map (kbd "C-c j s") 'jolly-brancher-start-ticket)
-            (define-key map (kbd "C-c j e") 'jolly-brancher-end-branch)
-            (define-key map (kbd "C-c j t") 'jolly-brancher-mode-change-status)
-            (define-key map (kbd "C-c j c") 'jolly-brancher--maybe-create-from-region)
-            map))
-
-;;;###autoload
-(transient-define-prefix jolly-brancher-menu ()
-  "Show jolly-brancher menu."
-  ["Actions"
-   ("l" "List tickets" jolly-brancher-mode-list-tickets)
-   ("s" "Start branch" jolly-brancher-start-ticket)
-   ("e" "End branch" jolly-brancher-end-branch)
-   ("c" "Create ticket" jolly-brancher-create-ticket)
-   ("t" "Change ticket status" jolly-brancher-mode-change-status)]
-  (interactive)
-  (transient-setup 'jolly-brancher-menu))
+(defun jolly-brancher--highlight-ticket ()
+  "Highlight the current ticket line."
+  (when (eq major-mode 'jolly-brancher-tickets-mode)
+    (let ((ticket (jolly-brancher--get-ticket-at-point)))
+      (when ticket
+        (message "Current ticket: %s" ticket)))))
 
 ;;;###autoload
 (defun jolly-brancher ()
