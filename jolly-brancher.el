@@ -509,6 +509,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "?") 'jolly-brancher-tickets-menu)
     (define-key map (kbd "e") 'jolly-brancher-end-ticket)
     (define-key map (kbd "f") 'jolly-brancher-filter-menu)
+    (define-key map (kbd "o") 'make-jql-older)
     (use-local-map map))
   
   ;; Set up font-lock with our keywords
@@ -607,8 +608,23 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "?") 'jolly-brancher-tickets-menu)
     (define-key map (kbd "e") 'jolly-brancher-end-ticket)
     (define-key map (kbd "f") 'jolly-brancher-filter-menu)
+    (define-key map (kbd "o") 'make-jql-older)
     map)
   "Keymap for `jolly-brancher-tickets-mode'.")
+
+(defun make-jql-older ()
+  "Add a week to the created JQL filter."
+  (interactive)
+  (if (not jolly-brancher--current-jql)
+      (message "No active ticket list to filter")
+    (let ((current-created-within (or jolly-brancher--current-created-within "5w")))
+      ;; Extract the number from the string (e.g., "5w" -> 5)
+      (when (string-match "\\([0-9]+\\)w" current-created-within)
+        (let ((weeks (string-to-number (match-string 1 current-created-within))))
+          ;; Add one week to the current value
+          (setq-local jolly-brancher--current-created-within (format "%dw" (+ weeks 1)))
+          (jolly-brancher--refresh-with-jql
+           (jolly-brancher--modify-jql-created 1 jolly-brancher--current-jql)))))))
 
 (defvar jolly-brancher-mode-map
   (let ((map (make-sparse-keymap)))
