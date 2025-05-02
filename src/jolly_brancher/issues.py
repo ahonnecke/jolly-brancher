@@ -432,11 +432,14 @@ class JiraClient:
                 return False
                 
             # Update the issue type
-            issue_update = {
+            fields = {
                 "issuetype": {"id": project_issue_types[new_type]}
             }
             
-            self._JIRA.update_issue(issue=issue, fields=issue_update)
+            # The correct way to update an issue in the JIRA Python library
+            # Get a fresh copy of the issue and update it
+            current_issue = self._JIRA.issue(issue.key)
+            current_issue.update(fields=fields)
             _logger.info(f"Updated issue {issue.key} type to {new_type}")
             return True
         except JIRAError as e:

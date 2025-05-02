@@ -554,7 +554,7 @@ def main(args=None):
             status = str(issue.fields.status)
             issue_type = str(issue.fields.issuetype)
             print(
-                f"{issue.key:<7}  S-{status:<12}  T-{issue_type:<10}  {issue.fields.summary}{'  *' if is_current else ''}"
+                f"{issue.key:<7}  {status:<12}  {issue_type:<10}  {issue.fields.summary}{'  *' if is_current else ''}"
             )
         return 0
 
