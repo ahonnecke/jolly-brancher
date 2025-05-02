@@ -266,7 +266,9 @@ def get_all_issues(
     if _logger.getEffectiveLevel() <= logging.DEBUG:
         print("\n" + "-" * 80)  # Add delimiter line above JQL query
         print("JQL Query:")
-        print(f"{jql_query}")
+        # Wrap the JQL query at AND operators for better readability
+        wrapped_query = jql_query.replace(" AND ", "\nAND ")
+        print(f"{wrapped_query}")
         print("-" * 80)  # Add delimiter line below JQL query
     print()
 
