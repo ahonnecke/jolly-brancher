@@ -182,6 +182,8 @@ def create_branch_name(issue):
         summary = summary.replace(bad_char, "")
 
     issue_type = str(issue.fields.issuetype).upper()
+    # Replace spaces with hyphens in the issue type to avoid Git errors
+    issue_type = issue_type.replace(" ", "-")
     branch_name = f"{issue_type}/{issue.key}-{summary[0:SUMMARY_MAX_LENGTH]}".replace(
         ",", ""
     )
@@ -471,6 +473,32 @@ def main(args=None):
             if ticket_match:
                 current_ticket = ticket_match.group(1)
 
+        # Check if jql looks like a ticket ID or just a number
+        modified_jql = args.jql
+        if args.jql:
+            full_ticket_pattern = r'^[A-Z]+-\d+$'
+            number_only_pattern = r'^\d+$'
+            
+            jql_stripped = args.jql.strip()
+            is_full_ticket_id = bool(re.match(full_ticket_pattern, jql_stripped))
+            is_number_only = bool(re.match(number_only_pattern, jql_stripped))
+            
+            if is_full_ticket_id:
+                # Full ticket ID (e.g., "PD-1316")
+                modified_jql = f"key = {jql_stripped}"
+                _logger.debug(f"Modified JQL for full ticket ID: {modified_jql}")
+            elif is_number_only:
+                # Just the number (e.g., "1316")
+                project = jira_config.get("project")
+                if project:
+                    # If project is available, construct the full ticket ID
+                    modified_jql = f"key = {project}-{jql_stripped}"
+                    _logger.debug(f"Modified JQL for ticket number with project: {modified_jql}")
+                else:
+                    # If no project, search for tickets with keys ending with that number
+                    modified_jql = f"key ~ -{jql_stripped}$"
+                    _logger.debug(f"Modified JQL for ticket number without project: {modified_jql}")
+        
         # Get all issues
         issues = jira.get_all_issues(
             project_name=jira_config.get("project"),
@@ -478,7 +506,7 @@ def main(args=None):
             current_user=args.current_user,
             no_assignee=args.no_assignee,
             created_within=args.created_within,
-            jql=args.jql,
+            jql=modified_jql,
             next_up=args.next_up,
         )
         for issue in issues:

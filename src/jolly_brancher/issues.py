@@ -1,6 +1,7 @@
 """Jira stuff."""
 
 import logging
+import re
 import webbrowser
 from enum import Enum
 
@@ -133,40 +134,101 @@ def get_all_issues(
     if not project_name:
         project_name = get_local_project(repo_path)
 
-    # Build base conditions list
-    conditions = []
-
-    # Add project filter if available
-    if project_name and not next_up:  # next_up already includes project filter
-        conditions.append(f"project = {project_name}")
-
-    # If JQL is provided, add it to conditions
+    # Check if jql looks like a ticket ID or just a number
+    full_ticket_pattern = r'^[A-Z]+-\d+$'
+    number_only_pattern = r'^\d+$'
+    is_full_ticket_id = False
+    is_number_only = False
+    jql_stripped = ""
+    ticket_id = ""
+    
     if jql:
-        conditions.append(f"({jql})")
-    else:
-        if next_up:
-            conditions.extend([
-                "project = PD",
-                "assignee = currentUser()",
-                "status in ('In Progress', 'New')"
-            ])
+        jql_stripped = jql.strip()
+        is_full_ticket_id = bool(re.match(full_ticket_pattern, jql_stripped))
+        is_number_only = bool(re.match(number_only_pattern, jql_stripped))
+    
+    # Handle ticket ID search
+    if jql and (is_full_ticket_id or is_number_only):
+        if is_full_ticket_id:
+            # Full ticket ID (e.g., "PD-1316")
+            ticket_id = jql_stripped
+            jql_query = f"key = {ticket_id}"
+            print(f"Searching for ticket: {ticket_id}")
         else:
-            # Get list of statuses for display
-            status_list = [str(x.value) for x in IssueStatus.selectable_statuses()]
-            status_filter = ",".join([f"'{x}'" for x in status_list])
-            conditions.append(f"status in ({status_filter})")
+            # Just the number (e.g., "1316")
+            ticket_number = jql_stripped
+            # If project_name is available, use it to construct the full ticket ID
+            if project_name:
+                ticket_id = f"{project_name}-{ticket_number}"
+                jql_query = f"key = {ticket_id}"
+                print(f"Searching for ticket: {ticket_id}")
+            else:
+                # If no project name, search by ticket number across all projects
+                jql_query = f"key ~ -{ticket_number}$"
+                print(f"Searching for tickets ending with: {ticket_number}")
+        
+        # Print repository info
+        if repo_path:
+            print(f"Repository: {repo_path}")
+        
+        # Only show JQL in verbose mode
+        if _logger.getEffectiveLevel() <= logging.DEBUG:
+            print("\nJQL Query:")
+            print(f"{jql_query}")
+        print()
+        
+        # Search for the ticket(s)
+        try:
+            if is_full_ticket_id or (is_number_only and project_name):
+                # For full ticket IDs or when we can construct one, use direct issue lookup
+                issue = jira_client._JIRA.issue(ticket_id)
+                return [issue]
+            else:
+                # For number-only searches without project context, use JQL search
+                chunk = jira_client._JIRA.search_issues(
+                    jql_query,
+                    maxResults=50,
+                    fields="summary,status,assignee",
+                )
+                return chunk
+        except Exception as e:
+            _logger.error(f"Failed to find ticket: {e}")
+            return []
+    else:
+        # Build base conditions list for normal search
+        conditions = []
 
-            # Handle assignee filtering
-            if current_user:
-                conditions.append("assignee = currentUser()")
-            elif no_assignee:
-                conditions.append("assignee is EMPTY")
+        # Add project filter if available
+        if project_name and not next_up:  # next_up already includes project filter
+            conditions.append(f"project = {project_name}")
 
-    # Add created filter if specified
-    if created_within:
-        conditions.append(f"created >= -{created_within}")
+        # If JQL is provided, add it to conditions
+        if jql:
+            conditions.append(f"({jql})")
+        else:
+            if next_up:
+                conditions.extend([
+                    "project = PD",
+                    "assignee = currentUser()",
+                    "status in ('In Progress', 'New')"
+                ])
+            else:
+                # Get list of statuses for display
+                status_list = [str(x.value) for x in IssueStatus.selectable_statuses()]
+                status_filter = ",".join([f"'{x}'" for x in status_list])
+                conditions.append(f"status in ({status_filter})")
 
-    jql_query = " AND ".join(conditions)
+                # Handle assignee filtering
+                if current_user:
+                    conditions.append("assignee = currentUser()")
+                elif no_assignee:
+                    conditions.append("assignee is EMPTY")
+
+        # Add created filter if specified
+        if created_within:
+            conditions.append(f"created >= -{created_within}")
+
+        jql_query = " AND ".join(conditions)
 
     _logger.debug("JQL query: %s", jql_query)
 

@@ -82,6 +82,12 @@ Each template can contain %s which will be replaced with appropriate values."
 (defvar-local jolly-brancher--list-repo-path nil
   "Store the repository path for the ticket list.")
 
+(defvar-local jolly-brancher--current-jql nil
+  "Store the current JQL query for the ticket list.")
+
+(defvar-local jolly-brancher--current-created-within nil
+  "Store the current created-within filter value.")
+
 (defun jolly-brancher--format-status-list ()
   "Format status list for JQL."
   (mapconcat (lambda (s) (format "'%s'" s))
@@ -93,21 +99,119 @@ Each template can contain %s which will be replaced with appropriate values."
 Optional CREATED-WITHIN adds time filter (e.g. \"5w\" for 5 weeks).
 Optional QUERY is used for search type queries."
   (let* ((template (alist-get type jolly-brancher-jql-templates))
-         (jql (if (eq type 'search)
-                  (format template query query)  ; For search, use query in both summary and description
-                (format template (jolly-brancher--format-status-list)))))
+         (jql (cond
+               ;; If it's a search and the query looks like a ticket ID (e.g., "PD-1316")
+               ((and (eq type 'search) query (string-match-p "^[A-Z]+-[0-9]+$" query))
+                (format "key = %s" query))
+               
+               ;; If it's a search and the query looks like just a number (e.g., "1316")
+               ((and (eq type 'search) query (string-match-p "^[0-9]+$" query))
+                (format "key = PD-%s" query))
+               
+               ;; For regular search queries
+               ((eq type 'search)
+                (format template query query))  ; For search, use query in both summary and description
+               
+               ;; For other types
+               (t
+                (format template (jolly-brancher--format-status-list))))))
     (if created-within
         (concat jql " AND created >= -" created-within)
       jql)))
+
+(defun jolly-brancher--modify-jql-status (status jql)
+  "Modify JQL query to change status filter to STATUS in JQL."
+  (if (string-match "status\\s-+in\\s-+(\\([^)]+\\))" jql)
+      (replace-match (format "'%s'" status) t t jql 1)
+    (concat jql " AND status = '" status "'")))
+
+(defun jolly-brancher--modify-jql-assignee (assignee jql)
+  "Modify JQL query to change assignee in JQL."
+  (let ((new-assignee (cond
+                       ((string= assignee "currentUser") "currentUser()")
+                       ((string= assignee "unassigned") "EMPTY")
+                       (t (format "'%s'" assignee)))))
+    (if (string-match "assignee\\s-*=\\s-*\\([^\\s-]+\\)" jql)
+        (replace-match new-assignee t t jql 1)
+      (if (string-match "assignee\\s-+is\\s-+\\([^\\s-]+\\)" jql)
+          (replace-match (format "= %s" new-assignee) t t jql 0)
+        (concat jql " AND assignee = " new-assignee)))))
+
+(defun jolly-brancher--modify-jql-created (weeks-offset jql)
+  "Modify JQL query to adjust created date by WEEKS-OFFSET weeks in JQL."
+  (if (string-match "created\\s-+>=\\s-+-\\([0-9]+\\)w" jql)
+      (let ((current-weeks (string-to-number (match-string 1 jql))))
+        (replace-match (number-to-string (+ current-weeks weeks-offset)) t t jql 1))
+    (concat jql " AND created >= -" (number-to-string (abs weeks-offset)) "w")))
+
+(defun jolly-brancher--refresh-with-jql (jql)
+  "Refresh ticket list with new JQL query."
+  (when-let ((repo-path jolly-brancher--list-repo-path))
+    (let* ((args (list (format "--jql=%s" jql)))
+           (cmd (jolly-brancher--format-command repo-path "list" args)))
+      (with-current-buffer (get-buffer "*jolly-brancher-tickets*")
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (setq jolly-brancher--current-jql jql)
+          (insert (shell-command-to-string cmd))
+          (goto-char (point-min)))))))
 
 (defun jolly-brancher--list-tickets (type &optional created-within query)
   "List tickets based on TYPE with optional CREATED-WITHIN filter and search QUERY."
   (if-let ((repo-path (jolly-brancher--get-repo-root)))
       (let* ((jql (jolly-brancher--construct-jql type created-within query))
-             (args (list (format "--jql=%s" jql))))
-        (let ((cmd (jolly-brancher--format-command repo-path "list" args)))
-          (jolly-brancher--display-tickets cmd repo-path)))
+             (args (list (format "--jql=%s" jql)))
+             (cmd (jolly-brancher--format-command repo-path "list" args)))
+        (with-current-buffer (get-buffer-create "*jolly-brancher-tickets*")
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (jolly-brancher-tickets-mode)
+            (setq-local jolly-brancher--list-command cmd
+                       jolly-brancher--list-repo-path repo-path
+                       jolly-brancher--current-repo repo-path
+                       jolly-brancher--current-jql jql
+                       jolly-brancher--current-created-within created-within)
+            (insert (shell-command-to-string cmd))
+            (goto-char (point-min)))
+          (pop-to-buffer (current-buffer))))
     (message "Not in a git repository")))
+
+(transient-define-prefix jolly-brancher-dispatch ()
+  "Show popup menu for jolly-brancher commands."
+  ["Jolly Brancher Commands"
+   ["Tickets"
+    ("l" "List my tickets" jolly-brancher-list-my-tickets)
+    ("u" "List unassigned tickets" jolly-brancher-list-unassigned-tickets)
+    ("a" "List all tickets" jolly-brancher-list-all-tickets)
+    ("n" "List next-up tickets" jolly-brancher-list-next-up-tickets)
+    ("/" "Search tickets" jolly-brancher-search-tickets)
+    ("f" "Filter current view" jolly-brancher-filter-menu)]
+   ["Actions"
+    ("s" "Start work on ticket" jolly-brancher-start)
+    ("e" "End work and create PR" jolly-brancher-end)
+    ("c" "Create new ticket" jolly-brancher-create-ticket)
+    ("t" "Set ticket status" jolly-brancher-set-status)]
+   ["Navigation"
+    ("m" "Toggle Magit/Jolly" jolly-brancher-toggle-magit)
+    ("q" "Quit" transient-quit-one)]])
+
+(transient-define-prefix jolly-brancher-tickets-menu ()
+  "Show menu for actions in the tickets buffer."
+  ["Jolly Brancher Tickets"
+   ["Actions"
+    ("RET" "Start branch for ticket" jolly-brancher-start-ticket-at-point)
+    ("v" "View ticket in browser" jolly-brancher-open-ticket-in-browser)
+    ("g" "Refresh list" jolly-brancher-refresh-tickets)
+    ("s" "Change ticket status" jolly-brancher-change-ticket-status)
+    ("e" "End work and create PR" jolly-brancher-end-ticket)
+    ("q" "Quit window" quit-window)]
+   ["Filter Tickets"
+    ("m" "Show my tickets" jolly-brancher-list-my-tickets)
+    ("n" "Show next-up tickets" jolly-brancher-list-next-up-tickets)
+    ("u" "Show unassigned tickets" jolly-brancher-list-unassigned-tickets)
+    ("a" "Show all tickets" jolly-brancher-list-all-tickets)
+    ("/" "Search tickets" jolly-brancher-search-tickets)
+    ("f" "Filter current view" jolly-brancher-filter-menu)]])
 
 (defun jolly-brancher-list-my-tickets ()
   "List tickets assigned to the current user."
@@ -279,21 +383,21 @@ Wraps code blocks in triple backticks and preserves newlines."
         (switch-to-buffer buffer)
       (jolly-brancher-list-next-up-tickets))))
 
-(defun jolly-brancher--display-tickets (command repo-path)
-  "Run COMMAND and display results in a tickets buffer with REPO-PATH."
-  (let ((buf (get-buffer-create "*jolly-brancher-tickets*")))
-    (with-current-buffer buf
+(defun jolly-brancher--display-tickets (cmd repo-path)
+  "Display tickets using CMD in a buffer for REPO-PATH."
+  (let ((buffer (get-buffer-create "*jolly-brancher-tickets*")))
+    (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
         (jolly-brancher-tickets-mode)
-        (setq-local jolly-brancher--list-command command)
-        (setq-local jolly-brancher--list-repo-path repo-path)
-        (setq-local jolly-brancher--current-repo repo-path)
-        (insert (propertize (format "%s Tickets\n\n" (jolly-brancher--get-repo-name repo-path)) 'face 'bold))
-        (insert "Press ? for transient menu\n\n")
-        (shell-command command t)
+        (setq-local jolly-brancher--list-command cmd
+                    jolly-brancher--list-repo-path repo-path
+                    jolly-brancher--current-repo repo-path
+                    jolly-brancher--current-jql nil
+                    jolly-brancher--current-created-within nil)
+        (insert (shell-command-to-string cmd))
         (goto-char (point-min))))
-    (pop-to-buffer buf '((display-buffer-reuse-window display-buffer-same-window)))))
+    (pop-to-buffer buffer)))
 
 (define-derived-mode jolly-brancher-tickets-mode special-mode "Jolly Brancher"
   "Major mode for viewing Jira tickets."
@@ -315,6 +419,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "/") 'jolly-brancher-search-tickets)
     (define-key map (kbd "?") 'jolly-brancher-tickets-menu)
     (define-key map (kbd "e") 'jolly-brancher-end-ticket)
+    (define-key map (kbd "f") 'jolly-brancher-filter-menu)
     (use-local-map map))
   
   (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
@@ -353,6 +458,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "/") 'jolly-brancher-search-tickets)
     (define-key map (kbd "?") 'jolly-brancher-tickets-menu)
     (define-key map (kbd "e") 'jolly-brancher-end-ticket)
+    (define-key map (kbd "f") 'jolly-brancher-filter-menu)
     map)
   "Keymap for `jolly-brancher-tickets-mode'.")
 
@@ -396,40 +502,57 @@ Global Commands:
       (message "Jolly Brancher mode enabled. Press M-j or C-c j j for commands")
     (message "Jolly Brancher mode disabled")))
 
-(transient-define-prefix jolly-brancher-dispatch ()
-  "Show popup menu for jolly-brancher commands."
-  ["Jolly Brancher Commands"
-   ["Tickets"
-    ("l" "List my tickets" jolly-brancher-list-my-tickets)
-    ("u" "List unassigned tickets" jolly-brancher-list-unassigned-tickets)
-    ("a" "List all tickets" jolly-brancher-list-all-tickets)
-    ("n" "List next-up tickets" jolly-brancher-list-next-up-tickets)
-    ("/" "Search tickets" jolly-brancher-search-tickets)]
-   ["Actions"
-    ("s" "Start work on ticket" jolly-brancher-start)
-    ("e" "End work and create PR" jolly-brancher-end)
-    ("c" "Create new ticket" jolly-brancher-create-ticket)
-    ("t" "Set ticket status" jolly-brancher-set-status)]
-   ["Navigation"
-    ("m" "Toggle Magit/Jolly" jolly-brancher-toggle-magit)
-    ("q" "Quit" transient-quit-one)]])
+(defun jolly-brancher-filter-status ()
+  "Change status filter in current JQL query."
+  (interactive)
+  (if (not jolly-brancher--current-jql)
+      (message "No active ticket list to filter")
+    (let ((status (completing-read "Status: " jolly-brancher-status-options nil t)))
+      (jolly-brancher--refresh-with-jql
+       (jolly-brancher--modify-jql-status status jolly-brancher--current-jql)))))
 
-(transient-define-prefix jolly-brancher-tickets-menu ()
-  "Show menu for actions in the tickets buffer."
-  ["Jolly Brancher Tickets"
+(defun jolly-brancher-filter-assignee ()
+  "Change assignee filter in current JQL query."
+  (interactive)
+  (if (not jolly-brancher--current-jql)
+      (message "No active ticket list to filter")
+    (let ((assignee (completing-read "Assignee: "
+                                   '("currentUser" "unassigned" "someone else")
+                                   nil t)))
+      (when (string= assignee "someone else")
+        (setq assignee (read-string "Enter assignee name: ")))
+      (jolly-brancher--refresh-with-jql
+       (jolly-brancher--modify-jql-assignee assignee jolly-brancher--current-jql)))))
+
+(defun jolly-brancher-filter-older ()
+  "Make created date filter one week older."
+  (interactive)
+  (if (not jolly-brancher--current-jql)
+      (message "No active ticket list to filter")
+    (jolly-brancher--refresh-with-jql
+     (jolly-brancher--modify-jql-created 1 jolly-brancher--current-jql))))
+
+(defun jolly-brancher-filter-newer ()
+  "Make created date filter one week newer."
+  (interactive)
+  (if (not jolly-brancher--current-jql)
+      (message "No active ticket list to filter")
+    (jolly-brancher--refresh-with-jql
+     (jolly-brancher--modify-jql-created -1 jolly-brancher--current-jql))))
+
+(transient-define-prefix jolly-brancher-filter-menu ()
+  "Show menu for filtering the current ticket list."
+  :value '()
+  ["Filter Current View"
+   ["Change Filters"
+    ("s" "Status" jolly-brancher-filter-status)
+    ("a" "Assignee" jolly-brancher-filter-assignee)]
+   ["Date Range"
+    ("o" "One week older" jolly-brancher-filter-older)
+    ("n" "One week newer" jolly-brancher-filter-newer)]
    ["Actions"
-    ("RET" "Start branch for ticket" jolly-brancher-start-ticket-at-point)
-    ("v" "View ticket in browser" jolly-brancher-open-ticket-in-browser)
-    ("g" "Refresh list" jolly-brancher-refresh-tickets)
-    ("s" "Change ticket status" jolly-brancher-change-ticket-status)
-    ("e" "End work and create PR" jolly-brancher-end-ticket)
-    ("q" "Quit window" quit-window)]
-   ["Filter Tickets"
-    ("m" "Show my tickets" jolly-brancher-list-my-tickets)
-    ("n" "Show next-up tickets" jolly-brancher-list-next-up-tickets)
-    ("u" "Show unassigned tickets" jolly-brancher-list-unassigned-tickets)
-    ("a" "Show all tickets" jolly-brancher-list-all-tickets)
-    ("/" "Search tickets" jolly-brancher-search-tickets)]])
+    ("g" "Refresh" jolly-brancher-refresh-tickets)
+    ("q" "Quit" transient-quit-one)]])
 
 (defun jolly-brancher--get-repo-root ()
   "Get the root directory of the current Git repository.
