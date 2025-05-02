@@ -107,7 +107,7 @@ def get_all_issues(
     repo_path=None,
     current_user=False,
     no_assignee=False,
-    created_within=False,
+    created_within=None,
     jql=None,
     next_up=False,
 ):
@@ -264,8 +264,10 @@ def get_all_issues(
 
     # Only show JQL in verbose mode
     if _logger.getEffectiveLevel() <= logging.DEBUG:
-        print("\nJQL Query:")
+        print("\n" + "-" * 80)  # Add delimiter line above JQL query
+        print("JQL Query:")
         print(f"{jql_query}")
+        print("-" * 80)  # Add delimiter line below JQL query
     print()
 
     while True:
