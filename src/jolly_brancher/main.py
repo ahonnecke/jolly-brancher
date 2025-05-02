@@ -215,42 +215,68 @@ def list_reviewers(args):
         # Get git PAT from local config first, fall back to global if not found
         local_pat = get_local_git_pat(args.repo)
         if not local_pat:
-            print("Warning: No git_pat found in local .jolly.ini, falling back to global config", file=sys.stderr)
+            print(
+                "Warning: No git_pat found in local .jolly.ini, falling back to global config",
+                file=sys.stderr,
+            )
             local_pat = git_pat()
-            
+
         # Skip reviewer fetching for classic tokens (starting with ghp_)
         if local_pat.startswith("ghp_"):
-            print("\nSkipping reviewer selection - classic GitHub token detected.", file=sys.stderr)
+            print(
+                "\nSkipping reviewer selection - classic GitHub token detected.",
+                file=sys.stderr,
+            )
             print("To add reviewers in the future:", file=sys.stderr)
-            print("1. Go to https://github.com/settings/tokens?type=beta", file=sys.stderr)
+            print(
+                "1. Go to https://github.com/settings/tokens?type=beta", file=sys.stderr
+            )
             print("2. Click 'Generate new token'", file=sys.stderr)
             print("3. Select the repository access for this repo", file=sys.stderr)
             print("4. Enable these permissions:", file=sys.stderr)
-            print("   - Repository permissions > Collaborators > Read-only", file=sys.stderr)
-            print("   - Repository permissions > Pull requests > Read and write", file=sys.stderr)
-            print(f"5. Add your git_pat to .jolly.ini in the repository root:", file=sys.stderr)
+            print(
+                "   - Repository permissions > Collaborators > Read-only",
+                file=sys.stderr,
+            )
+            print(
+                "   - Repository permissions > Pull requests > Read and write",
+                file=sys.stderr,
+            )
+            print(
+                f"5. Add your git_pat to .jolly.ini in the repository root:",
+                file=sys.stderr,
+            )
             print("\n[git]", file=sys.stderr)
             print("git_pat = your_token_here\n", file=sys.stderr)
             return None
-            
+
         g = Github(local_pat)
-        
+
         # Get forge_root from local config
         forge_root = get_forge_root(args.repo)
         if not forge_root:
-            print("Error: forge_root not found in local .jolly.ini file", file=sys.stderr)
+            print(
+                "Error: forge_root not found in local .jolly.ini file", file=sys.stderr
+            )
             sys.exit(1)
-            
-        repo_name = os.path.basename(args.repo.rstrip('/'))
+
+        repo_name = os.path.basename(args.repo.rstrip("/"))
         full_repo_name = f"{forge_root}/{repo_name}"
-        
+
         try:
             repo = g.get_repo(full_repo_name)
             collaborators = list(repo.get_collaborators())
             return [collab.login for collab in collaborators]
         except GithubException as err:
-            if err.status == 403 and "forbids access via a personal access token" in str(err.data.get("message", "")):
-                print(f"\nWarning: Cannot fetch collaborators. The organization '{forge_root}' requires a fine-grained personal access token.", file=sys.stderr)
+            if (
+                err.status == 403
+                and "forbids access via a personal access token"
+                in str(err.data.get("message", ""))
+            ):
+                print(
+                    f"\nWarning: Cannot fetch collaborators. The organization '{forge_root}' requires a fine-grained personal access token.",
+                    file=sys.stderr,
+                )
                 return None
             raise
     except GithubException as err:
@@ -273,10 +299,12 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
             print("\nAvailable reviewers:")
             for i, collab in enumerate(collaborators, 1):
                 print(f"{i}. {collab}")
-            
+
             # Allow multiple reviewer selection
             while True:
-                selection = input("\nSelect reviewer number (or press Enter to finish): ").strip()
+                selection = input(
+                    "\nSelect reviewer number (or press Enter to finish): "
+                ).strip()
                 if not selection:
                     break
                 try:
@@ -293,7 +321,10 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
                 except ValueError:
                     print("Please enter a valid number")
     else:
-        print("\nSkipping reviewer selection - using classic GitHub token.", file=sys.stderr)
+        print(
+            "\nSkipping reviewer selection - using classic GitHub token.",
+            file=sys.stderr,
+        )
         print("PR will be created without reviewers.", file=sys.stderr)
 
     tags = get_tags(github_repo)
@@ -379,8 +410,13 @@ def open_pr(repo_path, git_pat, org, repo, jira_client):
 
         return pr
     except GithubException as err:
-        if err.status == 403 and "forbids access via a personal access token" in str(err.data.get("message", "")):
-            print("\nWarning: Creating PR without reviewers due to token permissions.", file=sys.stderr)
+        if err.status == 403 and "forbids access via a personal access token" in str(
+            err.data.get("message", "")
+        ):
+            print(
+                "\nWarning: Creating PR without reviewers due to token permissions.",
+                file=sys.stderr,
+            )
             # Try again without reviewers
             pr = create_pull(
                 org,
@@ -476,13 +512,13 @@ def main(args=None):
         # Check if jql looks like a ticket ID or just a number
         modified_jql = args.jql
         if args.jql:
-            full_ticket_pattern = r'^[A-Z]+-\d+$'
-            number_only_pattern = r'^\d+$'
-            
+            full_ticket_pattern = r"^[A-Z]+-\d+$"
+            number_only_pattern = r"^\d+$"
+
             jql_stripped = args.jql.strip()
             is_full_ticket_id = bool(re.match(full_ticket_pattern, jql_stripped))
             is_number_only = bool(re.match(number_only_pattern, jql_stripped))
-            
+
             if is_full_ticket_id:
                 # Full ticket ID (e.g., "PD-1316")
                 modified_jql = f"key = {jql_stripped}"
@@ -493,12 +529,16 @@ def main(args=None):
                 if project:
                     # If project is available, construct the full ticket ID
                     modified_jql = f"key = {project}-{jql_stripped}"
-                    _logger.debug(f"Modified JQL for ticket number with project: {modified_jql}")
+                    _logger.debug(
+                        f"Modified JQL for ticket number with project: {modified_jql}"
+                    )
                 else:
                     # If no project, search for tickets with keys ending with that number
                     modified_jql = f"key ~ -{jql_stripped}$"
-                    _logger.debug(f"Modified JQL for ticket number without project: {modified_jql}")
-        
+                    _logger.debug(
+                        f"Modified JQL for ticket number without project: {modified_jql}"
+                    )
+
         # Get all issues
         issues = jira.get_all_issues(
             project_name=jira_config.get("project"),
@@ -511,8 +551,10 @@ def main(args=None):
         )
         for issue in issues:
             is_current = current_ticket and issue.key == current_ticket
+            status = str(issue.fields.status)
+            issue_type = str(issue.fields.issuetype)
             print(
-                f"{issue.key}  [{issue.fields.status}]  {issue.fields.summary}{'  *' if is_current else ''}"
+                f"{issue.key:<7}  S-{status:<12}  T-{issue_type:<10}  {issue.fields.summary}{'  *' if is_current else ''}"
             )
         return 0
 
@@ -636,6 +678,31 @@ def main(args=None):
             sys.exit(0)
         except Exception as e:
             _logger.error("Error updating ticket status: %s", str(e))
+            sys.exit(1)
+
+    if args.action == "set-type":
+        if not args.ticket:
+            _logger.error("No ticket specified")
+            sys.exit(1)
+        if not args.issue_type:
+            _logger.error("No issue type specified")
+            sys.exit(1)
+
+        try:
+            issue = jira.get_issue(args.ticket)
+            if not issue:
+                _logger.error("Ticket not found: %s", args.ticket)
+                sys.exit(1)
+
+            success = jira.update_issue_type(issue, args.issue_type)
+            if success:
+                print(f"Successfully updated {args.ticket} type to {args.issue_type}")
+                sys.exit(0)
+            else:
+                _logger.error("Failed to update ticket type")
+                sys.exit(1)
+        except Exception as e:
+            _logger.error("Error updating ticket type: %s", str(e))
             sys.exit(1)
 
     if args.action == "start":

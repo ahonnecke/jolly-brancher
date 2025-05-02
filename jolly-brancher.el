@@ -190,7 +190,8 @@ Optional QUERY is used for search type queries."
     ("s" "Start work on ticket" jolly-brancher-start)
     ("e" "End work and create PR" jolly-brancher-end)
     ("c" "Create new ticket" jolly-brancher-create-ticket)
-    ("t" "Set ticket status" jolly-brancher-set-status)]
+    ("t" "Set ticket status" jolly-brancher-set-status)
+    ("y" "Set ticket type" jolly-brancher-set-type)]
    ["Navigation"
     ("m" "Toggle Magit/Jolly" jolly-brancher-toggle-magit)
     ("q" "Quit" transient-quit-one)]])
@@ -203,6 +204,7 @@ Optional QUERY is used for search type queries."
     ("v" "View ticket in browser" jolly-brancher-open-ticket-in-browser)
     ("g" "Refresh list" jolly-brancher-refresh-tickets)
     ("s" "Change ticket status" jolly-brancher-change-ticket-status)
+    ("y" "Change ticket type" jolly-brancher-set-type)
     ("e" "End work and create PR" jolly-brancher-end-ticket)
     ("q" "Quit window" quit-window)]
    ["Filter Tickets"
@@ -376,6 +378,39 @@ Wraps code blocks in triple backticks and preserves newlines."
   (interactive)
   (jolly-brancher-change-ticket-status))
 
+(defun jolly-brancher-set-type ()
+  "Set the type of the current branch's ticket."
+  (interactive)
+  (let* ((branch-name (shell-command-to-string "git rev-parse --abbrev-ref HEAD"))
+         (ticket-match (and branch-name (string-match "\\([A-Z]+-[0-9]+\\)" branch-name)))
+         (ticket-key (if ticket-match (match-string 1 branch-name)
+                       (read-string "Ticket key: ")))
+         (issue-types '("Epic" "Story" "Task" "Bug" "Spike" "Subtask" "Incident" "Tech Debt"))
+         (type (completing-read "New type: " issue-types nil t)))
+    (jolly-brancher-set-ticket-type ticket-key type)))
+
+(defun jolly-brancher-set-ticket-type (ticket-key type)
+  "Set the type of TICKET-KEY to TYPE."
+  (let ((cmd (jolly-brancher--format-command nil "set-type" (list "--ticket" ticket-key "--issue-type" type))))
+    (message "Setting type of %s to %s..." ticket-key type)
+    (shell-command cmd)))
+
+(defun jolly-brancher-change-ticket-type ()
+  "Change the type of a ticket."
+  (interactive)
+  (let* ((ticket (jolly-brancher--get-ticket-at-point))
+         (issue-types '("Epic" "Story" "Task" "Bug" "Spike" "Subtask" "Incident" "Tech Debt"))
+         (type (completing-read "New type: " issue-types nil t)))
+    (if ticket
+        (jolly-brancher-set-ticket-type ticket type)
+      (let ((ticket-key (read-string "Ticket key: ")))
+        (jolly-brancher-set-ticket-type ticket-key type)))))
+
+(defun jolly-brancher-mode-change-type ()
+  "Default change type command - changes type of current ticket."
+  (interactive)
+  (jolly-brancher-change-ticket-type))
+
 (defun jolly-brancher--switch-to-tickets ()
   "Switch to the jolly-brancher tickets buffer if it exists, otherwise create it."
   (let ((buffer (get-buffer "*jolly-brancher-tickets*")))
@@ -383,20 +418,73 @@ Wraps code blocks in triple backticks and preserves newlines."
         (switch-to-buffer buffer)
       (jolly-brancher-list-next-up-tickets))))
 
+(defun jolly-brancher--format-ticket-line (line)
+  "Format a ticket LINE with proper spacing and alignment."
+  ;; Just return the line as is to preserve the exact format
+  line)
+
+(defun jolly-brancher--process-ticket-output (output)
+  "Process the raw ticket OUTPUT to improve formatting."
+  (let ((lines (split-string output "\n" t))
+        (formatted-lines '())
+        (in-header t))
+    ;; Process each line
+    (dolist (line lines)
+      (cond
+       ;; Keep header lines as is
+       ((or in-header
+            (string-prefix-p "Repository:" line)
+            (string-prefix-p "JQL Query:" line)
+            (string-prefix-p "Filter:" line)
+            (string-prefix-p "Status:" line)
+            (string-prefix-p "Project:" line)
+            (string-prefix-p "Assignee:" line)
+            (string-empty-p line))
+        (push line formatted-lines)
+        ;; Empty line after header info marks end of header
+        (when (string-empty-p line)
+          (setq in-header nil)))
+       
+       ;; Format ticket lines
+       ((string-match "^[A-Z]+-[0-9]+" line)
+        (let ((formatted (jolly-brancher--format-ticket-line line)))
+          (when formatted
+            (push formatted formatted-lines))))
+       
+       ;; Keep other lines as is
+       (t (push line formatted-lines))))
+    
+    ;; Return the formatted output
+    (string-join (nreverse formatted-lines) "\n")))
+
 (defun jolly-brancher--display-tickets (cmd repo-path)
   "Display tickets using CMD in a buffer for REPO-PATH."
   (let ((buffer (get-buffer-create "*jolly-brancher-tickets*")))
     (with-current-buffer buffer
-      (let ((inhibit-read-only t))
+      (let ((inhibit-read-only t)
+            (raw-output (shell-command-to-string cmd)))
+        ;; Clear buffer and set mode
         (erase-buffer)
         (jolly-brancher-tickets-mode)
+        
+        ;; Set local variables
         (setq-local jolly-brancher--list-command cmd
                     jolly-brancher--list-repo-path repo-path
                     jolly-brancher--current-repo repo-path
                     jolly-brancher--current-jql nil
                     jolly-brancher--current-created-within nil)
-        (insert (shell-command-to-string cmd))
+        
+        ;; Process and insert the formatted output
+        (insert (jolly-brancher--process-ticket-output raw-output))
+        
+        ;; Ensure font-lock is applied with our custom setup
+        (jolly-brancher-setup-font-lock)
+        (font-lock-ensure)
+        
+        ;; Move to beginning of buffer
         (goto-char (point-min))))
+    
+    ;; Display the buffer
     (pop-to-buffer buffer)))
 
 (define-derived-mode jolly-brancher-tickets-mode special-mode "Jolly Brancher"
@@ -411,6 +499,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "v") 'jolly-brancher-open-ticket-in-browser)
     (define-key map (kbd "g") 'jolly-brancher-refresh-tickets)
     (define-key map (kbd "s") 'jolly-brancher-change-ticket-status)
+    (define-key map (kbd "y") 'jolly-brancher-set-type)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "m") 'jolly-brancher-list-my-tickets)
     (define-key map (kbd "n") 'jolly-brancher-list-next-up-tickets)
@@ -422,27 +511,85 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "f") 'jolly-brancher-filter-menu)
     (use-local-map map))
   
-  (setq-local font-lock-defaults '(jolly-brancher-tickets-mode-font-lock-keywords))
+  ;; Set up font-lock with our keywords
+  (setq-local font-lock-defaults '(nil t))
+  (jolly-brancher-setup-font-lock)
+  
+  ;; Enable font-lock and other modes
   (font-lock-mode 1)
   (hl-line-mode 1))
 
-(defvar jolly-brancher-tickets-mode-font-lock-keywords
-  '(("^\\([A-Z]+-[0-9]+\\)" 1 'jolly-brancher-ticket-face)
-    ("│ \\(In Progress\\|Done\\|To Do\\|New\\) │" 1 'jolly-brancher-status-face)
-    ("│ \\(Story\\|Bug\\|Task\\) │" 1 'jolly-brancher-type-face))
-  "Font lock keywords for `jolly-brancher-tickets-mode'.")
+;; Define a completely different approach to font-lock
+;; Use font-lock-add-keywords instead of defining a variable
 
+;; Define the faces with simpler definitions
 (defface jolly-brancher-ticket-face
-  '((t :inherit font-lock-function-name-face :weight bold))
-  "Face for ticket IDs in jolly-brancher mode.")
+  '((t (:foreground "magenta" :weight bold)))
+  "Face for ticket IDs.")
 
 (defface jolly-brancher-status-face
-  '((t :inherit font-lock-string-face))
-  "Face for ticket status in jolly-brancher mode.")
+  '((t (:foreground "yellow" :weight bold)))
+  "Face for status values.")
 
 (defface jolly-brancher-type-face
-  '((t :inherit font-lock-type-face))
-  "Face for ticket type in jolly-brancher mode.")
+  '((t (:foreground "cyan" :weight bold)))
+  "Face for type values.")
+
+(defface jolly-brancher-available-face
+  '((t (:foreground "green" :weight bold)))
+  "Face for available status.")
+
+(defface jolly-brancher-preparing-face
+  '((t (:foreground "green" :weight bold)))
+  "Face for preparing status.")
+
+;; Define a function to set up font-lock
+(defun jolly-brancher-setup-font-lock ()
+  "Set up font-lock keywords for jolly-brancher-mode."
+  (font-lock-add-keywords
+   nil
+   '(
+     ;; Ticket IDs
+     ("^\\(PD-[0-9]+\\)" 1 'jolly-brancher-ticket-face)
+     
+     ;; Type values - match exact patterns with word boundaries
+     ;; Put these before status patterns to ensure they take precedence
+     ("\\<\\(Bug\\)\\>" 1 'jolly-brancher-type-face)
+     ("\\<\\(Task\\)\\>" 1 'jolly-brancher-type-face)
+     ("\\<\\(Epic\\)\\>" 1 'jolly-brancher-type-face)
+     ("\\<\\(Story\\)\\>" 1 'jolly-brancher-type-face)
+     ("\\<\\(Tech Debt\\)\\>" 1 'jolly-brancher-type-face)
+     
+     ;; Status patterns - match exact patterns with word boundaries
+     ("\\<\\(In Progress\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(New\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(Backlog\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(To Do\\)\\>" 1 'jolly-brancher-status-face)
+     
+     ;; Special status terms
+     ("\"\\(available\\)\"" 1 'jolly-brancher-available-face)
+     ("\"\\(preparing\\)\"" 1 'jolly-brancher-preparing-face))
+   t))
+
+;; Define the variable for backward compatibility
+(defvar jolly-brancher-tickets-mode-font-lock-keywords
+  '(
+    ;; Ticket IDs
+    ("^\\(PD-[0-9]+\\)" 1 'jolly-brancher-ticket-face)
+    
+    ;; Type values - match exact patterns with word boundaries
+    ("\\<\\(Bug\\)\\>" 1 'jolly-brancher-type-face)
+    ("\\<\\(Task\\)\\>" 1 'jolly-brancher-type-face)
+    ("\\<\\(Epic\\)\\>" 1 'jolly-brancher-type-face)
+    ("\\<\\(Story\\)\\>" 1 'jolly-brancher-type-face)
+    ("\\<\\(Tech Debt\\)\\>" 1 'jolly-brancher-type-face)
+    
+    ;; Status patterns - match exact patterns with word boundaries
+    ("\\<\\(In Progress\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(New\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(Backlog\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(To Do\\)\\>" 1 'jolly-brancher-status-face))
+  "Font lock keywords for `jolly-brancher-tickets-mode'.")
 
 (defvar jolly-brancher-tickets-mode-map
   (let ((map (make-sparse-keymap)))
@@ -450,6 +597,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "v") 'jolly-brancher-open-ticket-in-browser)
     (define-key map (kbd "g") 'jolly-brancher-refresh-tickets)
     (define-key map (kbd "s") 'jolly-brancher-change-ticket-status)
+    (define-key map (kbd "y") 'jolly-brancher-set-type)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "m") 'jolly-brancher-list-my-tickets)
     (define-key map (kbd "n") 'jolly-brancher-list-next-up-tickets)
@@ -470,6 +618,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "C-c j s") 'jolly-brancher-start)
     (define-key map (kbd "C-c j e") 'jolly-brancher-end)
     (define-key map (kbd "C-c j t") 'jolly-brancher-set-status)
+    (define-key map (kbd "C-c j y") 'jolly-brancher-set-type)
     (define-key map (kbd "C-c j c") 'jolly-brancher-create-ticket)
     ;; Quick access keys
     (define-key map (kbd "M-j") 'jolly-brancher-dispatch)
@@ -480,6 +629,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "s") 'jolly-brancher-start)
     (define-key map (kbd "e") 'jolly-brancher-end)
     (define-key map (kbd "t") 'jolly-brancher-set-status)
+    (define-key map (kbd "y") 'jolly-brancher-set-type)
     (define-key map (kbd "c") 'jolly-brancher-create-ticket)
     map)
   "Keymap for `jolly-brancher-mode'.")

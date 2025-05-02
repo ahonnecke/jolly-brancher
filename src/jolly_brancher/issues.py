@@ -273,7 +273,7 @@ def get_all_issues(
             jql_query,
             startAt=i,
             maxResults=chunk_size,
-            fields="summary,status,assignee",
+            fields="summary,status,assignee,issuetype",
         )
         if not chunk.iterable:
             break
@@ -395,6 +395,56 @@ class JiraClient:
         pr_comment = "\n".join([head, body, foot])
 
         self.add_comment(issue, pr_comment)
+        
+    def update_issue_type(self, issue, new_type):
+        """Update the issue type of a ticket.
+        
+        Args:
+            issue: The Jira issue object
+            new_type: The new issue type (must match available Jira issue types)
+            
+        Returns:
+            bool: True if successful, False otherwise
+            
+        Raises:
+            JIRAError: If there's an error updating the issue type
+        """
+        try:
+            # Get the issue type ID for the new type
+            project_key = issue.fields.project.key
+            meta = self._JIRA.createmeta(
+                projectKeys=project_key, expand="projects.issuetypes"
+            )
+            
+            if not meta.get("projects"):
+                _logger.error(f"Project {project_key} not found or no issue types available")
+                return False
+                
+            project_meta = meta["projects"][0]
+            project_issue_types = {
+                it["name"]: it["id"] for it in project_meta["issuetypes"]
+            }
+            
+            if new_type not in project_issue_types:
+                _logger.error(
+                    f"Issue type {new_type} not available in project {project_key}. Available types: {list(project_issue_types.keys())}"
+                )
+                return False
+                
+            # Update the issue type
+            issue_update = {
+                "issuetype": {"id": project_issue_types[new_type]}
+            }
+            
+            self._JIRA.update_issue(issue=issue, fields=issue_update)
+            _logger.info(f"Updated issue {issue.key} type to {new_type}")
+            return True
+        except JIRAError as e:
+            _logger.error(f"Failed to update issue type: {e}")
+            print(f"Failed to change the ticket type automatically: {e}")
+            # Open link to ticket
+            webbrowser.open(self.issue(issue).permalink())
+            return False
 
     def create_ticket(self, title, description, issue_type, project_key):
         """Create a new ticket in Jira.

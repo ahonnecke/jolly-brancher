@@ -58,8 +58,9 @@ def create_parser():
             "end-ticket",
             "list-reviewers",
             "set-status",
+            "set-type",
         ],
-        help="Action to perform: list (show tickets), start (new branch), end (create PR), open-tickets (show active tickets), create-ticket (create new ticket), end-ticket (end ticket and create PR), or set-status (change ticket status)",
+        help="Action to perform: list (show tickets), start (new branch), end (create PR), open-tickets (show active tickets), create-ticket (create new ticket), end-ticket (end ticket and create PR), set-status (change ticket status), or set-type (change ticket type)",
     )
 
     parser.add_argument(
@@ -122,6 +123,21 @@ def create_parser():
             "QA",
             "Staged",
             "Done",
+        ],
+    )
+    
+    parser.add_argument(
+        "--issue-type",
+        help="Type to set the ticket to (for set-type action)",
+        choices=[
+            "Epic",
+            "Story",
+            "Task",
+            "Bug",
+            "Spike",
+            "Subtask",
+            "Incident",
+            "Tech Debt",
         ],
     )
 
