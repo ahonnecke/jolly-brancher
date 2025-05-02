@@ -122,6 +122,20 @@ Optional QUERY is used for search type queries."
           (jolly-brancher--refresh-with-jql
            (jolly-brancher--modify-jql-created 1 jolly-brancher--current-jql)))))))
 
+(defun make-jql-newer ()
+ "Subtract a week from the created JQL filter."
+ (interactive)
+ (if (not jolly-brancher--current-jql)
+     (message "No active ticket list to filter")
+   (let ((current-created-within (or jolly-brancher--current-created-within "5w")))
+     ;; Extract the number from the string (e.g., "5w" -> 5)
+     (when (string-match "\\([0-9]+\\)w" current-created-within)
+       (let ((weeks (string-to-number (match-string 1 current-created-within))))
+         ;; Subtract one week from the current value, but ensure it's at least 1
+         (setq-local jolly-brancher--current-created-within (format "%dw" (max 1 (- weeks 1))))
+         (jolly-brancher--refresh-with-jql
+          (jolly-brancher--modify-jql-created -1 jolly-brancher--current-jql)))))))
+
 (provide 'jolly-brancher-jql)
 
 ;;; jolly-brancher-jql.el ends here

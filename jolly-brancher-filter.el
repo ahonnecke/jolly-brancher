@@ -59,7 +59,7 @@
     ("a" "Assignee" jolly-brancher-filter-assignee)]
    ["Date Range"
     ("o" "One week older" jolly-brancher-filter-older)
-    ("n" "One week newer" jolly-brancher-filter-newer)]
+    ("w" "One week newer" jolly-brancher-filter-newer)]
    ["Actions"
     ("g" "Refresh" jolly-brancher-refresh-tickets)
     ("q" "Quit" transient-quit-one)]])

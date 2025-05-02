@@ -169,6 +169,7 @@
     (define-key map (kbd "e") 'jolly-brancher-end-ticket)
     (define-key map (kbd "f") 'jolly-brancher-filter-menu)
     (define-key map (kbd "o") 'make-jql-older)
+    (define-key map (kbd "w") 'make-jql-newer)
     map)
   "Keymap for `jolly-brancher-tickets-mode'.")
 
@@ -195,6 +196,7 @@
     (define-key map (kbd "e") 'jolly-brancher-end-ticket)
     (define-key map (kbd "f") 'jolly-brancher-filter-menu)
     (define-key map (kbd "o") 'make-jql-older)
+    (define-key map (kbd "w") 'make-jql-newer)
     (use-local-map map))
   
   ;; Set up font-lock with our keywords
