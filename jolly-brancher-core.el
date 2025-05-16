@@ -66,7 +66,7 @@
     ("e" "End work and create PR" jolly-brancher-end)
     ("c" "Create new ticket" jolly-brancher-create-ticket)
     ("t" "Set ticket status" jolly-brancher-set-status)
-    ("y" "Set ticket type" jolly-brancher-set-type)]
+    ("y" "Set ticket type" jolly-brancher-change-ticket-type)]
    ["Navigation"
     ("m" "Toggle Magit/Jolly" jolly-brancher-toggle-magit)
     ("q" "Quit" transient-quit-one)]])
@@ -79,7 +79,7 @@
     ("v" "View ticket in browser" jolly-brancher-open-ticket-in-browser)
     ("g" "Refresh list" jolly-brancher-refresh-tickets)
     ("s" "Change ticket status" jolly-brancher-change-ticket-status)
-    ("y" "Change ticket type" jolly-brancher-set-type)
+    ("y" "Change ticket type" jolly-brancher-change-ticket-type)
     ("e" "End work and create PR" jolly-brancher-end-ticket)
     ("q" "Quit window" quit-window)]
    ["Filter Tickets"
@@ -305,7 +305,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "C-c j s") 'jolly-brancher-start)
     (define-key map (kbd "C-c j e") 'jolly-brancher-end)
     (define-key map (kbd "C-c j t") 'jolly-brancher-set-status)
-    (define-key map (kbd "C-c j y") 'jolly-brancher-set-type)
+    (define-key map (kbd "C-c j y") 'jolly-brancher-change-ticket-type)
     (define-key map (kbd "C-c j c") 'jolly-brancher-create-ticket)
     ;; Quick access keys
     (define-key map (kbd "M-j") 'jolly-brancher-dispatch)
@@ -316,7 +316,7 @@ Wraps code blocks in triple backticks and preserves newlines."
     (define-key map (kbd "s") 'jolly-brancher-start)
     (define-key map (kbd "e") 'jolly-brancher-end)
     (define-key map (kbd "t") 'jolly-brancher-set-status)
-    (define-key map (kbd "y") 'jolly-brancher-set-type)
+    (define-key map (kbd "y") 'jolly-brancher-change-ticket-type)
     (define-key map (kbd "c") 'jolly-brancher-create-ticket)
     map)
   "Keymap for `jolly-brancher-mode'.")

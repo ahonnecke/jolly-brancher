@@ -99,6 +99,27 @@ This project started as a python utility, but over time I have found it to be
 more helpful as an emacs mode, so it's now a half lisp, half python monstrosity
 that is tailored exactly to my needs.
 
+Emacs Integration
+================
+Jolly Brancher now includes a comprehensive Emacs porcelain that keeps you sane by allowing you to interact with Jira tickets directly from Emacs - no more context switching to the Jira web interface!
+
+.. image:: https://github.com/user-attachments/assets/077e7f3d-be44-4755-bb38-6e898505593c
+   :width: 600px
+   :alt: Jolly Brancher Emacs Interface
+
+The Emacs porcelain provides a rich set of features:
+
+* List and filter tickets (my tickets, unassigned, next-up, all tickets)
+* Search tickets with JQL queries
+* Start work on tickets (creates branches automatically)
+* End work and create PRs
+* Change ticket status and type directly from Emacs
+* Create new tickets
+* View tickets in browser when needed
+* Syntax highlighting for ticket information
+
+Key bindings are available through the ``C-c j`` prefix or through the interactive menu (``C-c j j``).
+
 Deploy
 ===============
   * Manually bump version in setup.py

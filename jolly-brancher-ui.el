@@ -117,14 +117,22 @@
      ("\\<\\(Task\\)\\>" 1 'jolly-brancher-type-face)
      ("\\<\\(Epic\\)\\>" 1 'jolly-brancher-type-face)
      ("\\<\\(Story\\)\\>" 1 'jolly-brancher-type-face)
+     ("\\<\\(Subtask\\)\\>" 1 'jolly-brancher-type-face)
+     ("\\<\\(Spike\\)\\>" 1 'jolly-brancher-type-face)
+     ("\\<\\(Incident\\)\\>" 1 'jolly-brancher-type-face)
      ("\\<\\(Tech Debt\\)\\>" 1 'jolly-brancher-type-face)
      
      ;; Status patterns - match exact patterns with word boundaries
-     ("\\<\\(In Progress\\)\\>" 1 'jolly-brancher-status-face)
-     ("\\<\\(New\\)\\>" 1 'jolly-brancher-status-face)
      ("\\<\\(Backlog\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(Blocked\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(Done\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(In Progress\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(In Review\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(New\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(QA\\)\\>" 1 'jolly-brancher-status-face)
+     ("\\<\\(Staged\\)\\>" 1 'jolly-brancher-status-face)
      ("\\<\\(To Do\\)\\>" 1 'jolly-brancher-status-face)
-     
+
      ;; Special status terms
      ("\"\\(available\\)\"" 1 'jolly-brancher-available-face)
      ("\"\\(preparing\\)\"" 1 'jolly-brancher-preparing-face))
@@ -141,13 +149,22 @@
     ("\\<\\(Task\\)\\>" 1 'jolly-brancher-type-face)
     ("\\<\\(Epic\\)\\>" 1 'jolly-brancher-type-face)
     ("\\<\\(Story\\)\\>" 1 'jolly-brancher-type-face)
+    ("\\<\\(Subtask\\)\\>" 1 'jolly-brancher-type-face)
+    ("\\<\\(Spike\\)\\>" 1 'jolly-brancher-type-face)
+    ("\\<\\(Incident\\)\\>" 1 'jolly-brancher-type-face)
     ("\\<\\(Tech Debt\\)\\>" 1 'jolly-brancher-type-face)
-    
+
     ;; Status patterns - match exact patterns with word boundaries
-    ("\\<\\(In Progress\\)\\>" 1 'jolly-brancher-status-face)
-    ("\\<\\(New\\)\\>" 1 'jolly-brancher-status-face)
     ("\\<\\(Backlog\\)\\>" 1 'jolly-brancher-status-face)
-    ("\\<\\(To Do\\)\\>" 1 'jolly-brancher-status-face))
+    ("\\<\\(Blocked\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(Done\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(In Progress\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(In Review\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(New\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(QA\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(Staged\\)\\>" 1 'jolly-brancher-status-face)
+    ("\\<\\(To Do\\)\\>" 1 'jolly-brancher-status-face)
+    )
   "Font lock keywords for `jolly-brancher-tickets-mode'.")
 
 ;; Tickets mode definition and keymap
@@ -158,7 +175,7 @@
     (define-key map (kbd "v") 'jolly-brancher-open-ticket-in-browser)
     (define-key map (kbd "g") 'jolly-brancher-refresh-tickets)
     (define-key map (kbd "s") 'jolly-brancher-change-ticket-status)
-    (define-key map (kbd "y") 'jolly-brancher-set-type)
+    (define-key map (kbd "y") 'jolly-brancher-change-ticket-type)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "m") 'jolly-brancher-list-my-tickets)
     (define-key map (kbd "n") 'jolly-brancher-list-next-up-tickets)
@@ -185,7 +202,7 @@
     (define-key map (kbd "v") 'jolly-brancher-open-ticket-in-browser)
     (define-key map (kbd "g") 'jolly-brancher-refresh-tickets)
     (define-key map (kbd "s") 'jolly-brancher-change-ticket-status)
-    (define-key map (kbd "y") 'jolly-brancher-set-type)
+    (define-key map (kbd "y") 'jolly-brancher-change-ticket-type)
     (define-key map (kbd "q") 'quit-window)
     (define-key map (kbd "m") 'jolly-brancher-list-my-tickets)
     (define-key map (kbd "n") 'jolly-brancher-list-next-up-tickets)
