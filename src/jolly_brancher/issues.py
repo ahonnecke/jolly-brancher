@@ -1,10 +1,12 @@
 """Jira stuff."""
 
+import json
 import logging
 import re
 import webbrowser
 from enum import Enum
 
+import requests
 from jira import JIRA
 from jira.exceptions import JIRAError
 
@@ -185,12 +187,10 @@ def get_all_issues(
                 return [issue]
             else:
                 # For number-only searches without project context, use JQL search
-                chunk = jira_client._JIRA.search_issues(
+                return jira_client.search_issues_jql(
                     jql_query,
-                    maxResults=50,
-                    fields="summary,status,assignee",
+                    fields=["summary", "status", "assignee"]
                 )
-                return chunk
         except Exception as e:
             _logger.error(f"Failed to find ticket: {e}")
             return []
@@ -272,19 +272,11 @@ def get_all_issues(
         print("-" * 80)  # Add delimiter line below JQL query
     print()
 
-    while True:
-        chunk = jira_client._JIRA.search_issues(
-            jql_query,
-            startAt=i,
-            maxResults=chunk_size,
-            fields="summary,status,assignee,issuetype",
-        )
-        if not chunk.iterable:
-            break
-        issues.extend(chunk)
-        i += chunk_size
-        if i >= chunk.total:
-            break
+    # Use the new search/jql endpoint instead of the deprecated search endpoint
+    issues = jira_client.search_issues_jql(
+        jql_query,
+        fields=["summary", "status", "assignee", "issuetype"]
+    )
 
     return issues
 
@@ -303,11 +295,98 @@ class JiraClient:
 
     def __init__(self, url, email, token, user_scope=False):
         # testing async
-        self._JIRA = JIRA(url, basic_auth=(email, token), options={"async": True})
+        # Use API version 3 for CHANGE-2046 compatibility (new search/jql endpoint)
+        # The library will auto-detect cloud instances from the server_info() call
+        self._JIRA = JIRA(
+            url,
+            basic_auth=(email, token),
+            options={"async": True, "server": url, "rest_api_version": "3"}
+        )
         self.scope = False
         self.email = email
+        self.token = token
+        self.url = url
         if user_scope:
             self.scope = USER_SCOPE
+
+    def search_issues_jql(self, jql_query, fields=None, max_results=50):
+        """Search issues using the new /rest/api/3/search/jql endpoint.
+        
+        This method uses the new JIRA API endpoint that replaces the deprecated
+        /rest/api/3/search endpoint (CHANGE-2046).
+        
+        Args:
+            jql_query: JQL query string
+            fields: List of field names to return (default: summary, status, assignee, issuetype)
+            max_results: Maximum number of results per page (default: 50)
+            
+        Returns:
+            List of issue objects compatible with the jira library's Issue class
+        """
+        if fields is None:
+            fields = ["summary", "status", "assignee", "issuetype"]
+            
+        url = f"{self.url}/rest/api/3/search/jql"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        auth = (self.email, self.token)
+        
+        all_issues = []
+        next_page_token = None
+        
+        while True:
+            payload = {
+                "jql": jql_query,
+                "fields": fields
+            }
+            
+            if next_page_token:
+                payload["nextPageToken"] = next_page_token
+            
+            _logger.debug(f"Requesting: {url} with payload: {payload}")
+            
+            try:
+                response = requests.post(url, headers=headers, auth=auth, json=payload)
+                response.raise_for_status()
+                
+                data = response.json()
+                _logger.debug(f"Response: {json.dumps(data, indent=2)}")
+                
+                # Convert the response to jira library Issue objects
+                # The new endpoint returns issues with 'id', 'key', and 'fields'
+                for issue_data in data.get("issues", []):
+                    # Create a mock Issue object that's compatible with the jira library
+                    # We'll use the jira library's issue() method to get full Issue objects
+                    issue_key = issue_data.get("key")
+                    if issue_key:
+                        try:
+                            # Fetch the full issue object using the jira library
+                            # This ensures compatibility with the rest of the codebase
+                            issue = self._JIRA.issue(issue_key, fields=",".join(fields))
+                            all_issues.append(issue)
+                        except Exception as e:
+                            _logger.warning(f"Failed to fetch issue {issue_key}: {e}")
+                            continue
+                
+                # Check if there are more pages
+                next_page_token = data.get("nextPageToken")
+                if not next_page_token:
+                    break
+                    
+                # Safety check to prevent infinite loops
+                if len(all_issues) >= 1000:
+                    _logger.warning("Reached maximum of 1000 issues, stopping pagination")
+                    break
+                    
+            except requests.exceptions.RequestException as e:
+                _logger.error(f"Failed to search issues: {e}")
+                if hasattr(e, 'response') and e.response is not None:
+                    _logger.error(f"Response text: {e.response.text}")
+                raise JIRAError(f"Failed to search issues: {e}")
+        
+        return all_issues
 
     def get_issue(self, issue_key):
         """Get a single issue by key."""

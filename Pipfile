@@ -4,8 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-jira = "*"
-prompt-toolkit = "*"
+jira = ">=3.5.0"
+prompt-toolkit = "==3.0.51"
 argparse = "*"
 pygithub = "*"
 twine = "*"
