@@ -22,7 +22,7 @@
   :type '(repeat string)
   :group 'jolly-brancher)
 
-(defcustom jolly-brancher-jira-url "https://cirrusv2x.atlassian.net"
+(defcustom jolly-brancher-jira-url "https://errasoft.atlassian.net"
   "Base URL for Jira instance."
   :type 'string
   :group 'jolly-brancher)

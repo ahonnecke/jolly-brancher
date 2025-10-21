@@ -37,7 +37,7 @@ def body(
 
     return (
         f"# {short_desc} against {ticket}\n"
-        f"JIRA ticket | [{ticket}](https://cirrusv2x.atlassian.net/browse/{ticket})\n"
+        f"JIRA ticket | [{ticket}](https://errasoft.atlassian.net/browse/{ticket})\n"
         f"-----------------------------------------------------------------\n"
         f"## Details\n"
         f"> {detail}\n"
