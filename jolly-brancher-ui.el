@@ -108,8 +108,8 @@
   (font-lock-add-keywords
    nil
    '(
-     ;; Ticket IDs
-     ("^\\(PD-[0-9]+\\)" 1 'jolly-brancher-ticket-face)
+     ;; Ticket IDs (matches any JIRA format: PROJECT-NUMBER)
+     ("^\\([A-Z]+-[0-9]+\\)" 1 'jolly-brancher-ticket-face)
      
      ;; Type values - match exact patterns with word boundaries
      ;; Put these before status patterns to ensure they take precedence
@@ -141,8 +141,8 @@
 ;; Define the variable for backward compatibility
 (defvar jolly-brancher-tickets-mode-font-lock-keywords
   '(
-    ;; Ticket IDs
-    ("^\\(PD-[0-9]+\\)" 1 'jolly-brancher-ticket-face)
+    ;; Ticket IDs (matches any JIRA format: PROJECT-NUMBER)
+    ("^\\([A-Z]+-[0-9]+\\)" 1 'jolly-brancher-ticket-face)
     
     ;; Type values - match exact patterns with word boundaries
     ("\\<\\(Bug\\)\\>" 1 'jolly-brancher-type-face)

@@ -108,7 +108,7 @@
   (jolly-brancher--list-tickets 'all-tickets "5w"))
 
 (defun jolly-brancher-list-next-up-tickets ()
-  "List tickets that are In Progress or New, assigned to current user, in PD project."
+  "List tickets that are In Progress or New, assigned to current user."
   (interactive)
   (jolly-brancher--list-tickets 'next-up))
 

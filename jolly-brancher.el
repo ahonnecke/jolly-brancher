@@ -62,6 +62,22 @@ Global Commands:
     (message "Jolly Brancher mode disabled")))
 
 ;;;###autoload
+(defun jolly-brancher-reload ()
+  "Reload all jolly-brancher Emacs Lisp files.
+This is useful after updating the code or fixing bugs."
+  (interactive)
+  (message "Reloading jolly-brancher...")
+  (unload-feature 'jolly-brancher-integration t)
+  (unload-feature 'jolly-brancher-filter t)
+  (unload-feature 'jolly-brancher-ui t)
+  (unload-feature 'jolly-brancher-jql t)
+  (unload-feature 'jolly-brancher-core t)
+  (unload-feature 'jolly-brancher-utils t)
+  (unload-feature 'jolly-brancher t)
+  (require 'jolly-brancher)
+  (message "Jolly-brancher reloaded successfully!"))
+
+;;;###autoload
 (defun jolly-brancher ()
   "Show the jolly-brancher menu."
   (interactive)

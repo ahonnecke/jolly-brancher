@@ -10,13 +10,14 @@
 (require 'jolly-brancher-utils)
 
 (defcustom jolly-brancher-jql-templates
-  '((my-tickets . "project = PD AND assignee = currentUser() AND status in (%s)")
-    (unassigned . "project = PD AND assignee is EMPTY AND status in (%s)")
-    (next-up . "project = PD AND assignee = currentUser() AND status in ('In Progress', 'New')")
-    (all-tickets . "project = PD AND status in (%s)")
-    (search . "project = PD AND (summary ~ \"%s\" OR description ~ \"%s\")"))
+  '((my-tickets . "assignee = currentUser() AND status in (%s)")
+    (unassigned . "assignee is EMPTY AND status in (%s)")
+    (next-up . "assignee = currentUser() AND status in ('In Progress', 'New')")
+    (all-tickets . "status in (%s)")
+    (search . "(summary ~ \"%s\" OR description ~ \"%s\")"))
   "JQL templates for different ticket views.
-Each template can contain %s which will be replaced with appropriate values."
+Each template can contain %s which will be replaced with appropriate values.
+The project filter is automatically added by the backend based on .jolly.ini configuration."
   :type '(alist :key-type symbol :value-type string)
   :group 'jolly-brancher)
 
@@ -32,13 +33,14 @@ Optional CREATED-WITHIN adds time filter (e.g. \"5w\" for 5 weeks).
 Optional QUERY is used for search type queries."
   (let* ((template (alist-get type jolly-brancher-jql-templates))
          (jql (cond
-               ;; If it's a search and the query looks like a ticket ID (e.g., "PD-1316")
+               ;; If it's a search and the query looks like a ticket ID (e.g., "SYSMIC-1316")
                ((and (eq type 'search) query (string-match-p "^[A-Z]+-[0-9]+$" query))
                 (format "key = %s" query))
                
                ;; If it's a search and the query looks like just a number (e.g., "1316")
+               ;; Let the backend handle constructing the full ticket ID with project prefix
                ((and (eq type 'search) query (string-match-p "^[0-9]+$" query))
-                (format "key = PD-%s" query))
+                query)
                
                ;; For regular search queries
                ((eq type 'search)

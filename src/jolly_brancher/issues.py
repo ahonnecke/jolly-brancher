@@ -124,7 +124,7 @@ def get_all_issues(
         no_assignee: If True, show only unassigned tickets
         created_within: Time period for created filter (e.g. "5w" for 5 weeks, "1M" for 1 month)
         jql: Optional JQL query to filter tickets
-        next_up: If True, show In Progress and New tickets assigned to current user in PD project
+        next_up: If True, show In Progress and New tickets assigned to current user
 
     Returns:
         List of Jira issues
@@ -207,8 +207,10 @@ def get_all_issues(
             conditions.append(f"({jql})")
         else:
             if next_up:
+                # Use project_name if available, otherwise don't filter by project
+                if project_name:
+                    conditions.append(f"project = {project_name}")
                 conditions.extend([
-                    "project = PD",
                     "assignee = currentUser()",
                     "status in ('In Progress', 'New')"
                 ])
@@ -237,7 +239,8 @@ def get_all_issues(
         print(f"Repository: {repo_path}")
     
     if next_up:
-        print("Filter: Next Up Tickets (In Progress and New, assigned to you, in PD project)")
+        project_info = f" in {project_name} project" if project_name else ""
+        print(f"Filter: Next Up Tickets (In Progress and New, assigned to you{project_info})")
     else:
         if not jql:  # Only show these if not using custom JQL
             print(f"Status: {', '.join([str(x.value) for x in IssueStatus.selectable_statuses()])}")
@@ -411,7 +414,7 @@ class JiraClient:
             repo_path: Optional repository path to display
             created_within: Time period for created filter (e.g. "5w" for 5 weeks, "1M" for 1 month)
             jql: Optional JQL query to filter tickets
-            next_up: If True, show In Progress and New tickets assigned to current user in PD project
+            next_up: If True, show In Progress and New tickets assigned to current user
         """
         return get_all_issues(
             self,

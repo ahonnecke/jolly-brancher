@@ -39,7 +39,7 @@ After upgrading, test the following functionality:
 
 2. **Search by ticket number**:
    ```bash
-   jolly-brancher list --jql "PD-1234"
+   jolly-brancher list --jql "PROJECT-1234"
    ```
 
 3. **Custom JQL queries**:

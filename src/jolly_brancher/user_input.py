@@ -206,7 +206,7 @@ def create_parser():
     assignee_group.add_argument(
         "--next-up",
         action="store_true",
-        help="Show In Progress and New tickets assigned to current user in PD project",
+        help="Show In Progress and New tickets assigned to current user",
     )
 
     return parser
