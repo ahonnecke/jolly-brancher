@@ -198,13 +198,19 @@ def get_all_issues(
         # Build base conditions list for normal search
         conditions = []
 
-        # Add project filter if available
-        if project_name and not next_up:  # next_up already includes project filter
-            conditions.append(f"project = {project_name}")
-
-        # If JQL is provided, add it to conditions
+        # If JQL is provided, use it and optionally add project filter
         if jql:
-            conditions.append(f"({jql})")
+            # Add project filter only if the JQL doesn't already contain a project or key filter
+            # (key filters like "key = SYSMIC-23" already imply the project)
+            jql_lower = jql.lower()
+            if project_name and "project" not in jql_lower and "key" not in jql_lower:
+                conditions.append(f"project = {project_name}")
+            # Only wrap in parentheses if we're combining with other conditions
+            if conditions:
+                conditions.append(f"({jql})")
+            else:
+                # If no other conditions, use JQL as-is
+                jql_query = jql
         else:
             if next_up:
                 # Use project_name if available, otherwise don't filter by project
@@ -215,6 +221,10 @@ def get_all_issues(
                     "status in ('In Progress', 'New')"
                 ])
             else:
+                # Add project filter for default list
+                if project_name:
+                    conditions.append(f"project = {project_name}")
+                
                 # Get list of statuses for display
                 status_list = [str(x.value) for x in IssueStatus.selectable_statuses()]
                 status_filter = ",".join([f"'{x}'" for x in status_list])
@@ -230,7 +240,9 @@ def get_all_issues(
         if created_within:
             conditions.append(f"created >= -{created_within}")
 
-        jql_query = " AND ".join(conditions)
+        # Only join conditions if we haven't already set jql_query directly
+        if not jql or conditions:
+            jql_query = " AND ".join(conditions)
 
     _logger.debug("JQL query: %s", jql_query)
 
@@ -329,7 +341,9 @@ class JiraClient:
         if fields is None:
             fields = ["summary", "status", "assignee", "issuetype"]
             
-        url = f"{self.url}/rest/api/3/search/jql"
+        # Remove trailing slash from URL if present to avoid double slashes
+        base_url = self.url.rstrip('/')
+        url = f"{base_url}/rest/api/3/search/jql"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
@@ -340,18 +354,19 @@ class JiraClient:
         next_page_token = None
         
         while True:
-            payload = {
+            # Use query parameters for GET request, not JSON body
+            params = {
                 "jql": jql_query,
-                "fields": fields
+                "fields": ",".join(fields)  # Fields should be comma-separated string
             }
             
             if next_page_token:
-                payload["nextPageToken"] = next_page_token
+                params["nextPageToken"] = next_page_token
             
-            _logger.debug(f"Requesting: {url} with payload: {payload}")
+            _logger.debug(f"Requesting: {url} with params: {params}")
             
             try:
-                response = requests.post(url, headers=headers, auth=auth, json=payload)
+                response = requests.get(url, headers=headers, auth=auth, params=params)
                 response.raise_for_status()
                 
                 data = response.json()

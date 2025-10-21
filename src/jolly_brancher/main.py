@@ -36,7 +36,7 @@ __copyright__ = "Ashton Von Honnecke"
 __license__ = "MIT"
 
 
-setup_logging(logging.DEBUG)
+setup_logging(logging.INFO)
 _logger = logging.getLogger(__name__)
 
 SUMMARY_MAX_LENGTH = 80
