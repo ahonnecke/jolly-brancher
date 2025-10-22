@@ -17,6 +17,7 @@ from jolly_brancher.config import (
     github_org,
     git_pat,
     get_forge_root,
+    get_forge_type,
     CONFIG_FILENAME,
     get_local_git_pat,
 )
@@ -607,6 +608,8 @@ def main(args=None):
 
     if args.action == "end-ticket":
         try:
+            from jolly_brancher.forge import get_forge_client
+            
             # Get current branch name
             branch_name = subprocess.run(
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
@@ -620,43 +623,66 @@ def main(args=None):
                 print("Error: Not on a feature branch", file=sys.stderr)
                 sys.exit(1)
 
-            # Extract ticket key from branch name (assuming format contains ticket key)
+            # Extract ticket key from branch name
             ticket_match = re.search(r"([A-Z]+-\d+)", branch_name)
+            ticket_key = None
             if ticket_match:
                 ticket_key = ticket_match.group(1)
                 # Remove the ticket from open tickets
                 remove_open_ticket(ticket_key)
 
-            # Get repository name for PR creation
-            repo_name = (
-                get_upstream_repo(repo_path)[0].split("/")[-1].replace(".git", "")
-            )
+            # Get the default branch for the target
+            target_branch = get_default_branch(repo_path)
+            if not target_branch:
+                target_branch = "main"  # Fallback to main
 
-            # Create pull request
-            subprocess.run(
-                [
-                    "gh",
-                    "pr",
-                    "create",
-                    "--repo",
-                    f"{github_org()}/{repo_name}",
-                    "--title",
-                    f"{branch_name}",
-                    "--body",
-                    f"Closes {ticket_key if ticket_match else branch_name}",
-                ],
-                check=True,
-                cwd=repo_path,
-            )
+            # Get forge client and create PR/MR
             try:
-                jira.transition_issue(jira.get_issue(ticket_key), "In Review")
-                print(f"Set {ticket_key} status to 'In Review'")
+                forge_client = get_forge_client(repo_path)
+                
+                # Get JIRA issue for better PR/MR description
+                myissue = None
+                if ticket_key:
+                    try:
+                        myissue = jira.get_issue(ticket_key)
+                    except Exception as e:
+                        _logger.warning("Could not fetch JIRA issue: %s", e)
+                
+                # Create title and body
+                if myissue:
+                    title = f"{ticket_key} - {myissue.fields.summary}"
+                    body = f"Closes {ticket_key}\n\n{myissue.fields.summary}"
+                else:
+                    title = branch_name
+                    body = f"Closes {ticket_key if ticket_key else branch_name}"
+                
+                # Create PR/MR
+                forge_client.create_pr_or_mr(
+                    branch_name=branch_name,
+                    target_branch=target_branch,
+                    title=title,
+                    body=body,
+                    reviewers=None,
+                )
+                
+                # Update JIRA ticket status
+                if ticket_key:
+                    try:
+                        jira.transition_issue(jira.get_issue(ticket_key), "In Review")
+                        print(f"Set {ticket_key} status to 'In Review'")
+                    except Exception as e:
+                        print(f"Failed to set {ticket_key} status to 'In Review': {e}")
+                
+                print(f"Successfully created PR/MR for {branch_name}")
+                sys.exit(0)
+                
             except Exception as e:
-                print(f"Failed to set {ticket_key} status to 'In Review': {e}")
-            print(f"Successfully created PR for {branch_name}")
-            sys.exit(0)
+                _logger.error("Failed to create PR/MR using forge client: %s", e)
+                print(f"Error creating pull request/merge request: {e}", file=sys.stderr)
+                sys.exit(1)
+                
         except subprocess.CalledProcessError as e:
-            print(f"Error creating pull request: {e}", file=sys.stderr)
+            print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
     if args.action == "set-status":

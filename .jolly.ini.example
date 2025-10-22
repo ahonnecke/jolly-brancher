@@ -6,3 +6,14 @@ branch_format = {issue_type}/{ticket}-{summary}
 [git]
 # Git-specific settings
 default_branch = main
+
+# For GitHub (default):
+forge_type = github
+forge_root = your-organization
+git_pat = ghp_xxxxxxxxxxxxxxxxxxxx
+
+# For GitLab:
+# forge_type = gitlab
+# forge_root = your-group/your-project
+# forge_url = https://gitlab.com
+# git_pat = glpat-xxxxxxxxxxxxxxxxxxxx

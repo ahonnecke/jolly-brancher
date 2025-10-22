@@ -1,9 +1,12 @@
 """Configuration functions."""
 
 import configparser
+import logging
 import os
 import sys
 from typing import Optional
+
+_logger = logging.getLogger(__name__)
 
 FILENAME = "jolly_brancher.ini"
 LOCAL_CONFIG_FILENAME = ".jolly.ini"
@@ -271,6 +274,74 @@ def get_forge_root(repo_path=None):
         return config[GIT_SECTION_NAME]["forge_root"]
     except (KeyError, configparser.NoSectionError):
         return None
+
+
+def get_forge_type(repo_path=None):
+    """Get forge_type from local .jolly.ini file.
+    
+    Args:
+        repo_path: Optional path to repository. If not provided, will search from current directory.
+        
+    Returns:
+        str: Forge type ('github' or 'gitlab'), defaults to 'github' if not found
+    """
+    if repo_path:
+        repo_root = repo_path
+    else:
+        repo_root = find_repo_root()
+    
+    if not repo_root:
+        return "github"  # Default to GitHub
+        
+    local_config_path = os.path.join(repo_root, LOCAL_CONFIG_FILENAME)
+    if not os.path.exists(local_config_path):
+        return "github"  # Default to GitHub
+        
+    config = configparser.ConfigParser()
+    config.read(local_config_path)
+    
+    try:
+        forge_type = config[GIT_SECTION_NAME]["forge_type"].lower()
+        if forge_type not in ["github", "gitlab"]:
+            _logger.warning("Invalid forge_type '%s', defaulting to 'github'", forge_type)
+            return "github"
+        return forge_type
+    except (KeyError, configparser.NoSectionError):
+        return "github"  # Default to GitHub
+
+
+def get_forge_url(repo_path=None):
+    """Get forge_url from local .jolly.ini file.
+    
+    Args:
+        repo_path: Optional path to repository. If not provided, will search from current directory.
+        
+    Returns:
+        str: Forge URL (e.g., 'https://gitlab.com'), or None if not found
+    """
+    if repo_path:
+        repo_root = repo_path
+    else:
+        repo_root = find_repo_root()
+    
+    if not repo_root:
+        return None
+        
+    local_config_path = os.path.join(repo_root, LOCAL_CONFIG_FILENAME)
+    if not os.path.exists(local_config_path):
+        return None
+        
+    config = configparser.ConfigParser()
+    config.read(local_config_path)
+    
+    try:
+        return config[GIT_SECTION_NAME]["forge_url"]
+    except (KeyError, configparser.NoSectionError):
+        # Default URLs based on forge type
+        forge_type = get_forge_type(repo_path)
+        if forge_type == "gitlab":
+            return "https://gitlab.com"
+        return "https://github.com"
 
 
 def get_reviewer_config() -> dict:
