@@ -68,8 +68,8 @@ Global
 JIRA and git credentials are required in `~/.config/jolly_brancher.ini` it
 contains all the global settings.
 
-Example:
-::
+Example::
+
     [jira]
     branch_format = {issue_type}/{ticket}-{summary}
 
@@ -100,7 +100,7 @@ more helpful as an emacs mode, so it's now a half lisp, half python monstrosity
 that is tailored exactly to my needs.
 
 Emacs Integration
-================
+=================
 Jolly Brancher now includes a comprehensive Emacs porcelain that keeps you sane by allowing you to interact with Jira tickets directly from Emacs - no more context switching to the Jira web interface!
 
 .. image:: https://github.com/user-attachments/assets/077e7f3d-be44-4755-bb38-6e898505593c

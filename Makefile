@@ -4,14 +4,16 @@
 # @file
 # @version 0.1
 
+.PHONY: build docs clean publish.test publish.pypi deploy
+
 build:
-	tox -e build
+	tox -r -e build
 
 docs:
 	tox -e docs
 
 clean:
-	rm ./dist/*
+	rm -rf ./dist/*
 
 publish.test:
 	tox -e publish
